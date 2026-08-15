@@ -53,9 +53,11 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
     doc.setFont(undefined, 'bold');
     doc.setFontSize(11);
     doc.setTextColor(201, 130, 27);
-    doc.text(task.start + (task.end ? ` – ${task.end}` : ' · em aberto'), marginX, y);
+    const timeLabel = task.start + (task.end ? ` – ${task.end}` : ' · em aberto');
+    doc.text(timeLabel, marginX, y);
+    const timeWidth = doc.getTextWidth(timeLabel);
     doc.setTextColor(28, 27, 26);
-    doc.text(task.title, marginX + 90, y);
+    doc.text(task.title, marginX + timeWidth + 14, y);
     y += 13;
 
     doc.setFont(undefined, 'normal');
