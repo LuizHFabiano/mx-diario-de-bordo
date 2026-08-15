@@ -13,17 +13,13 @@ export function EventBlock({ task, style, category, canEdit, dayClosed, onEdit, 
         {task.start}
         {openEnded ? ' · em aberto' : ` – ${task.end}`}
       </div>
-      <div className="event-block__title">{task.title}</div>
       <div className="event-block__meta">
-        {category && (
-          <>
-            <span className="event-block__meta-dot" style={{ background: category.color }} />
-            {category.name} ·{' '}
-          </>
-        )}
+        {category && <span className="event-block__meta-dot" style={{ background: category.color }} />}
+        {category ? `${category.name} · ` : ''}
         {task.userName}
       </div>
-      <div className="event-block__desc">{task.description}</div>
+      <div className="event-block__title">{task.title}</div>
+      {task.description && <div className="event-block__desc">{task.description}</div>}
       {canEdit && (
         <button
           type="button"

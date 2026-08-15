@@ -1,4 +1,5 @@
-export const HOUR_H = 64;
+export const MIN_HOUR_PX = 56;
+export const MIN_BLOCK_H = 132;
 
 export const FALLBACK_COLORS = [
   { bg: '#EAF1FE', line: '#3562E0' },

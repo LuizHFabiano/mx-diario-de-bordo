@@ -1,9 +1,14 @@
 import { timeStrToMinutes } from './dateUtils';
+import { MIN_HOUR_PX, MIN_BLOCK_H } from './constants';
+
+const MIN_COLLISION_MINUTES = (MIN_BLOCK_H / MIN_HOUR_PX) * 60;
 
 export function layoutTasks(tasks, dayEndMin) {
   const withEffectiveEnd = tasks.map((task) => {
     const start = timeStrToMinutes(task.start);
-    const end = task.end ? timeStrToMinutes(task.end) : Math.min(start + 30, dayEndMin);
+    const declaredEnd = task.end ? timeStrToMinutes(task.end) : start;
+    const visualFloorEnd = Math.min(start + MIN_COLLISION_MINUTES, dayEndMin);
+    const end = Math.max(declaredEnd, visualFloorEnd);
     return { task, start, end };
   });
 

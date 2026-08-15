@@ -6,7 +6,7 @@ import { useAuth } from './AuthContext';
 
 const AppDataContext = createContext(null);
 
-const DEFAULT_SETTINGS = { dayStart: '08:00', dayEnd: '18:00', allowManualClose: false };
+const DEFAULT_SETTINGS = { dayStart: '08:00', dayEnd: '23:00', allowManualClose: false };
 
 export function AppDataProvider({ children }) {
   const { currentUser } = useAuth();

@@ -1,4 +1,4 @@
-const DEFAULT_SETTINGS = { dayStart: '08:00', dayEnd: '18:00', allowManualClose: false };
+const DEFAULT_SETTINGS = { dayStart: '08:00', dayEnd: '23:00', allowManualClose: false };
 const DEFAULT_CATEGORIES = [{ id: 'cat_pop_os', name: 'PoP de OS', color: '#E5484D' }];
 
 function read(key, fallback) {
