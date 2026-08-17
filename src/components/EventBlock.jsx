@@ -1,6 +1,6 @@
 import { ICONS } from '../icons';
 
-export function EventBlock({ task, style, category, canEdit, dayClosed, onEdit, onDelete }) {
+export function EventBlock({ task, style, category, canEdit, dayClosed, onEdit }) {
   const openEnded = !task.end;
 
   return (
@@ -20,18 +20,6 @@ export function EventBlock({ task, style, category, canEdit, dayClosed, onEdit, 
       </div>
       <div className="event-block__title">{task.title}</div>
       {task.description && <div className="event-block__desc">{task.description}</div>}
-      {canEdit && (
-        <button
-          type="button"
-          className="event-block__delete"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(task.id);
-          }}
-        >
-          <img src={ICONS.close} alt="" />
-        </button>
-      )}
       {!canEdit && dayClosed && (
         <div className="event-block__lock">
           <img src={ICONS.lockMuted} alt="" />

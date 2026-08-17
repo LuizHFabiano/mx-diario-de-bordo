@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Button } from './Button';
+import logoMx from '../assets/logo-mx.png';
 
 export function AuthScreen() {
   const { login, signup } = useAuth();
@@ -36,11 +37,7 @@ export function AuthScreen() {
     <div className="auth-screen">
       <div className="auth-card">
         <div className="brand">
-          <div className="brand__mark" />
-          <div className="brand__text">
-            <strong>MX</strong>
-            <span>SOLUÇÕES</span>
-          </div>
+          <img className="brand__logo" src={logoMx} alt="MX Soluções" />
         </div>
         <div className="auth-tabs">
           <button

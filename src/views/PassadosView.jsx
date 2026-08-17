@@ -109,7 +109,6 @@ export function PassadosView() {
             showNowLine={false}
             nowMinutes={null}
             onEdit={() => {}}
-            onDelete={() => {}}
             fallbackColors={FALLBACK_COLORS}
           />
           {filteredTasks.length === 0 && (

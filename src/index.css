@@ -90,43 +90,16 @@ button{ cursor:pointer; }
 }
 .brand{
   display:flex;
-  align-items:center;
-  gap:10px;
+  justify-content:center;
   padding:0 6px 32px;
 }
-.brand__mark{
-  width:36px; height:36px;
-  border-radius:9px;
-  background:var(--color-ink);
-  position:relative;
-  flex-shrink:0;
-  overflow:hidden;
-}
-.brand__mark::before, .brand__mark::after{
-  content:"";
-  position:absolute;
-  width:3px;
-  height:26px;
-  top:5px;
-  background:var(--color-accent);
-}
-.brand__mark::before{ left:11px; transform:rotate(22deg); }
-.brand__mark::after{ left:21px; transform:rotate(-22deg); }
-.brand__text{ line-height:1.05; }
-.brand__text strong{
+.brand__logo{
   display:block;
-  font-family:var(--font-display);
-  font-size:16px;
-  font-weight:700;
-  letter-spacing:0.01em;
+  width:auto;
+  max-width:100%;
+  height:44px;
 }
-.brand__text span{
-  display:block;
-  font-size:10px;
-  font-weight:600;
-  letter-spacing:0.14em;
-  color:var(--color-muted);
-}
+.brand__logo--icon{ display:none; }
 
 .nav{ display:flex; flex-direction:column; gap:4px; }
 .nav__item{
@@ -361,19 +334,6 @@ button{ cursor:pointer; }
   text-overflow:ellipsis;
 }
 .event-block__meta-dot{ width:6px; height:6px; border-radius:50%; flex-shrink:0; }
-.event-block__delete{
-  position:absolute;
-  top:4px; right:4px;
-  width:18px; height:18px;
-  border:none;
-  background:rgba(255,255,255,0.75);
-  border-radius:50%;
-  display:none;
-  align-items:center;
-  justify-content:center;
-}
-.event-block__delete img{ width:9px; height:9px; }
-.event-block.is-editable:hover .event-block__delete{ display:flex; }
 .event-block__lock{ position:absolute; top:5px; right:5px; }
 .event-block__lock img{ width:11px; height:11px; opacity:.55; }
 
@@ -509,12 +469,15 @@ button{ cursor:pointer; }
   overflow-y:auto;
 }
 .modal__title{ font-family:var(--font-display); font-size:17px; font-weight:600; margin:0 0 18px; }
-.modal__actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:20px; }
+.modal__actions{ display:flex; align-items:center; gap:10px; margin-top:20px; }
+.modal__actions-right{ display:flex; gap:10px; margin-left:auto; }
 
 @media (max-width: 760px){
   .sidebar{ width:72px; padding:20px 12px; }
-  .brand__text, .nav__item span{ display:none; }
+  .nav__item span{ display:none; }
   .brand{ justify-content:center; padding-bottom:24px; }
+  .brand__logo--full{ display:none; }
+  .brand__logo--icon{ display:block; height:32px; }
   .nav__item{ justify-content:center; padding:12px; }
   .main__header{ padding:18px 20px; }
   .content-wrapper{ padding:18px 20px 40px; }

@@ -113,7 +113,6 @@ export function HojeView() {
             showNowLine={!day.closed}
             nowMinutes={nowMinutes}
             onEdit={(task) => setModalTask(task)}
-            onDelete={(id) => removeTask(todayKey, id)}
             fallbackColors={FALLBACK_COLORS}
           />
           {filteredTasks.length === 0 && (
@@ -124,7 +123,13 @@ export function HojeView() {
         </div>
       </div>
       {modalTask !== undefined && (
-        <TaskModal task={modalTask} categories={categories} onClose={() => setModalTask(undefined)} onSave={handleSaveTask} />
+        <TaskModal
+          task={modalTask}
+          categories={categories}
+          onClose={() => setModalTask(undefined)}
+          onSave={handleSaveTask}
+          onDelete={(id) => removeTask(todayKey, id)}
+        />
       )}
     </>
   );

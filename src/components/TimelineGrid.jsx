@@ -14,7 +14,6 @@ export function TimelineGrid({
   showNowLine,
   nowMinutes,
   onEdit,
-  onDelete,
   fallbackColors,
 }) {
   const totalMinutes = dayEndMin - dayStartMin;
@@ -75,7 +74,6 @@ export function TimelineGrid({
                 canEdit={canEdit}
                 dayClosed={dayClosed}
                 onEdit={onEdit}
-                onDelete={onDelete}
               />
             );
           })}

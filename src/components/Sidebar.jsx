@@ -1,4 +1,6 @@
 import { ICONS } from '../icons';
+import logoMx from '../assets/logo-mx.png';
+import logoMxIcon from '../assets/logo-mx-icon.png';
 
 const NAV_ITEMS = [
   { key: 'hoje', label: 'Diários de Hoje', icon: ICONS.doc },
@@ -9,11 +11,8 @@ export function Sidebar({ view, onChangeView }) {
   return (
     <aside className="sidebar">
       <div className="brand">
-        <div className="brand__mark" />
-        <div className="brand__text">
-          <strong>MX</strong>
-          <span>SOLUÇÕES</span>
-        </div>
+        <img className="brand__logo brand__logo--full" src={logoMx} alt="MX Soluções" />
+        <img className="brand__logo brand__logo--icon" src={logoMxIcon} alt="MX Soluções" />
       </div>
       <nav className="nav">
         {NAV_ITEMS.map((item) => (

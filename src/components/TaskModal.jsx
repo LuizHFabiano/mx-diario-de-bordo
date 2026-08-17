@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { Button } from './Button';
+import { ICONS } from '../icons';
 import { timeStrToMinutes } from '../utils/dateUtils';
 
-export function TaskModal({ task, categories, onClose, onSave }) {
+export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
   const [title, setTitle] = useState('');
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('');
@@ -48,6 +49,14 @@ export function TaskModal({ task, categories, onClose, onSave }) {
       description: description.trim(),
       categoryId: categoryId || null,
     });
+  }
+
+  function handleDelete() {
+    if (!task) return;
+    if (window.confirm('Excluir esta atividade? Essa ação não pode ser desfeita.')) {
+      onDelete(task.id);
+      onClose();
+    }
   }
 
   return (
@@ -103,12 +112,19 @@ export function TaskModal({ task, categories, onClose, onSave }) {
             />
           </div>
           <div className="modal__actions">
-            <Button type="button" variant="ghost" onClick={onClose}>
-              Cancelar
-            </Button>
-            <Button type="submit" variant="primary">
-              Salvar
-            </Button>
+            {task && (
+              <Button type="button" variant="danger" icon={ICONS.trash} onClick={handleDelete}>
+                Excluir
+              </Button>
+            )}
+            <div className="modal__actions-right">
+              <Button type="button" variant="ghost" onClick={onClose}>
+                Cancelar
+              </Button>
+              <Button type="submit" variant="primary">
+                Salvar
+              </Button>
+            </div>
           </div>
         </form>
       </div>
