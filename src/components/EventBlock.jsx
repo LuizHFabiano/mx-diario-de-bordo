@@ -2,6 +2,7 @@ import { ICONS } from '../icons';
 
 export function EventBlock({ task, style, category, canEdit, dayClosed, onEdit }) {
   const openEnded = !task.end;
+  const isEdited = Boolean(task.isEdited || task.editedAt);
 
   return (
     <div
@@ -15,8 +16,11 @@ export function EventBlock({ task, style, category, canEdit, dayClosed, onEdit }
       </div>
       <div className="event-block__meta">
         {category && <span className="event-block__meta-dot" style={{ background: category.color }} />}
-        {category ? `${category.name} · ` : ''}
-        {task.userName}
+        <span className="event-block__meta-text">
+          {category ? `${category.name} · ` : ''}
+          {task.userName}
+          {isEdited && <span className="event-block__edited">(Editado)</span>}
+        </span>
       </div>
       <div className="event-block__title">{task.title}</div>
       {task.description && <div className="event-block__desc">{task.description}</div>}

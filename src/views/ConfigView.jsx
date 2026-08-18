@@ -95,7 +95,11 @@ export function ConfigView() {
 
   return (
     <>
-      <Header title="Configurações" subtitle={currentUser.email} actions={null} />
+      <Header
+        title="Configurações"
+        subtitle={currentUser.email}
+        actions={null}
+      />
       <div className="content-wrapper">
         <div className="config-grid">
           <div className="config-card">
@@ -233,7 +237,7 @@ export function ConfigView() {
               </div>
               {passwordError && <p className="field__error is-visible">{passwordError}</p>}
               {passwordSuccess && (
-                <p className="field__error is-visible" style={{ color: '#1F9254' }}>
+                <p className="field__success is-visible">
                   Senha alterada com sucesso.
                 </p>
               )}

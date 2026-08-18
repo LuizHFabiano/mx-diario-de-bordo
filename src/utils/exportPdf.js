@@ -1,7 +1,9 @@
 import jsPDF from 'jspdf';
 import { formatLongDate, parseDateKey, timeStrToMinutes } from './dateUtils';
 
-const MARGIN = 40;
+const MARGIN = 46;
+const CELL_PAD = 8;
+const COL_GUTTER = 12;
 const INK = [28, 27, 26];
 const INK_SOFT = [81, 79, 76];
 const MUTED = [140, 137, 133];
@@ -11,6 +13,7 @@ const ACCENT_DARK = [201, 130, 27];
 const GREEN = [31, 146, 84];
 const BLUE = [53, 98, 224];
 const FOOTER_RESERVE = 46;
+const LINE_H = 11.5;
 
 function hexToRgbArray(hex) {
   const clean = (hex || '').replace('#', '');
@@ -92,11 +95,11 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
   const pageH = doc.internal.pageSize.getHeight();
   const tableW = pageW - MARGIN * 2;
 
-  const colIconW = 24;
-  const colHorarioW = 76;
-  const colCategoriaW = 92;
-  const colOperadorW = 68;
-  const colDuracaoW = 56;
+  const colIconW = 22;
+  const colHorarioW = 72;
+  const colCategoriaW = 72;
+  const colOperadorW = 76;
+  const colDuracaoW = 54;
   const colDescricaoW = tableW - colIconW - colHorarioW - colCategoriaW - colOperadorW - colDuracaoW;
 
   const colIconX = MARGIN;
@@ -105,6 +108,9 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
   const colDescricaoX = colCategoriaX + colCategoriaW;
   const colOperadorX = colDescricaoX + colDescricaoW;
   const colDuracaoX = colOperadorX + colOperadorW;
+
+  const descricaoContentW = colDescricaoW - CELL_PAD - COL_GUTTER;
+  const operadorContentW = colOperadorW - CELL_PAD - (COL_GUTTER - 4);
 
   let y = 46;
 
@@ -153,7 +159,7 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
   doc.setFontSize(11.5);
   doc.setTextColor(...INK);
   const filtersLabel = filterDescription && filterDescription.length ? filterDescription : 'Nenhum filtro aplicado';
-  const filtersMaxWidth = tableW - (metaColRightX - MARGIN) - metaIconSize - 10;
+  const filtersMaxWidth = pageW - MARGIN - (metaColRightX + metaIconSize + 10);
   doc.text(fitText(doc, filtersLabel, filtersMaxWidth), metaColRightX + metaIconSize + 10, y + 3);
 
   y += 24;
@@ -167,12 +173,12 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
     doc.setFont(undefined, 'bold');
     doc.setFontSize(8);
     doc.setTextColor(255, 255, 255);
-    doc.text('HORÁRIO', colHorarioX + 4, startY + 15, { charSpace: 0.4 });
-    doc.text('CATEGORIA', colCategoriaX + 4, startY + 15, { charSpace: 0.4 });
-    doc.text('DESCRIÇÃO', colDescricaoX + 4, startY + 15, { charSpace: 0.4 });
-    doc.text('OPERADOR', colOperadorX + 4, startY + 15, { charSpace: 0.4 });
-    doc.text('DURAÇÃO', colDuracaoX + 4, startY + 15, { charSpace: 0.4 });
-    return startY + 24 + 10;
+    doc.text('HORÁRIO', colHorarioX + CELL_PAD, startY + 15, { charSpace: 0.4 });
+    doc.text('CATEGORIA', colCategoriaX + CELL_PAD, startY + 15, { charSpace: 0.4 });
+    doc.text('DESCRIÇÃO', colDescricaoX + CELL_PAD, startY + 15, { charSpace: 0.4 });
+    doc.text('OPERADOR', colOperadorX + CELL_PAD, startY + 15, { charSpace: 0.4 });
+    doc.text('DURAÇÃO', colDuracaoX + CELL_PAD, startY + 15, { charSpace: 0.4 });
+    return startY + 24 + 12;
   }
 
   function ensureSpace(neededHeight) {
@@ -191,71 +197,96 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
     const category = task.categoryId ? categories.find((c) => c.id === task.categoryId) : null;
     const categoryLabelFull = category ? category.name.toUpperCase() : 'SEM CATEGORIA';
     const categoryRgb = category ? hexToRgbArray(category.color) : [140, 137, 133];
-    const descText = task.description && task.description.length ? task.description : '—';
-    const descLines = doc.splitTextToSize(descText, colDescricaoW - 10);
-    const operatorLines = doc.splitTextToSize(task.userName || '—', colOperadorW - 6);
 
-    const rowLineCount = Math.max(descLines.length, operatorLines.length, 1);
-    const rowHeight = Math.max(rowLineCount * 12 + 20, 46);
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(9.5);
+    const titleLines = doc.splitTextToSize(task.title || 'Sem título', descricaoContentW);
+
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8.5);
+    const descText = task.description && task.description.length ? task.description : '—';
+    const descLines = doc.splitTextToSize(descText, descricaoContentW);
+    const operatorLines = doc.splitTextToSize(task.userName || '—', operadorContentW);
+
+    const titleBlockH = titleLines.length * LINE_H;
+    const descBlockH = descLines.length * LINE_H;
+    const contentBlockH = titleBlockH + descBlockH + 6;
+    const operatorBlockH = operatorLines.length * LINE_H;
+    const isEdited = Boolean(task.isEdited || task.editedAt);
+    const rowHeight = Math.max(Math.max(contentBlockH, operatorBlockH) + 28, isEdited ? 58 : 50);
 
     ensureSpace(rowHeight);
 
     const rowTop = y;
-    const rowCenterY = rowTop + 20;
 
-    drawStatusIcon(doc, colIconX + colIconW / 2, rowCenterY - 4, !task.end);
+    drawStatusIcon(doc, colIconX + colIconW / 2, rowTop + 18, !task.end);
 
     doc.setFont(undefined, 'bold');
     doc.setFontSize(10.5);
     doc.setTextColor(...ACCENT_DARK);
     const timeLabel = task.end ? `${task.start} – ${task.end}` : task.start;
-    doc.text(timeLabel, colHorarioX + 2, rowTop + 14);
+    doc.text(timeLabel, colHorarioX + CELL_PAD, rowTop + 16);
     doc.setFont(undefined, 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(...MUTED);
-    doc.text(task.end ? 'CONCLUÍDA' : 'EM ABERTO', colHorarioX + 2, rowTop + 25, { charSpace: 0.4 });
+    const statusLabel = task.end ? 'CONCLUÍDA' : 'EM ABERTO';
+    const statusX = colHorarioX + CELL_PAD;
+    doc.text(statusLabel, statusX, rowTop + 27, { charSpace: 0.4 });
+    if (isEdited) {
+      doc.setFont(undefined, 'italic');
+      doc.setFontSize(7);
+      doc.setTextColor(...MUTED);
+      doc.text('(Editado)', statusX, rowTop + 38);
+    }
 
-    const maxPillW = colCategoriaW - 8;
+    const maxPillW = colCategoriaW - CELL_PAD - 6;
     doc.setFont(undefined, 'bold');
     doc.setFontSize(7.5);
-    const categoryLabel = fitText(doc, categoryLabelFull, maxPillW - 22);
-    const pillW = Math.min(maxPillW, doc.getTextWidth(categoryLabel) + 22);
+    const categoryLabel = fitText(doc, categoryLabelFull, maxPillW - 20);
+    const pillW = Math.min(maxPillW, doc.getTextWidth(categoryLabel) + 20);
     doc.setFillColor(...tint(categoryRgb, 0.85));
-    doc.roundedRect(colCategoriaX + 2, rowTop + 4, pillW, 15, 7.5, 7.5, 'F');
+    doc.roundedRect(colCategoriaX + CELL_PAD, rowTop + 6, pillW, 15, 7.5, 7.5, 'F');
     doc.setFillColor(...categoryRgb);
-    doc.circle(colCategoriaX + 12, rowTop + 11.5, 2.6, 'F');
+    doc.circle(colCategoriaX + CELL_PAD + 9, rowTop + 13.5, 2.6, 'F');
     doc.setFont(undefined, 'bold');
     doc.setFontSize(7.5);
     doc.setTextColor(...darken(categoryRgb, 0.35));
-    doc.text(categoryLabel, colCategoriaX + 18, rowTop + 14);
+    doc.text(categoryLabel, colCategoriaX + CELL_PAD + 15, rowTop + 16);
 
+    let cursorY = rowTop + 17;
     doc.setFont(undefined, 'bold');
     doc.setFontSize(9.5);
     doc.setTextColor(...INK);
-    doc.text(task.title, colDescricaoX + 2, rowTop + 14);
+    titleLines.forEach((line) => {
+      doc.text(line, colDescricaoX + CELL_PAD, cursorY);
+      cursorY += LINE_H;
+    });
+
+    cursorY += 4;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(...INK_SOFT);
+    descLines.forEach((line) => {
+      doc.text(line, colDescricaoX + CELL_PAD, cursorY);
+      cursorY += LINE_H;
+    });
 
     doc.setFont(undefined, 'normal');
     doc.setFontSize(8.5);
     doc.setTextColor(...INK_SOFT);
-    descLines.forEach((line, i) => {
-      doc.text(line, colDescricaoX + 2, rowTop + 26 + i * 11);
-    });
-
-    doc.setFontSize(8.5);
-    doc.setTextColor(...INK_SOFT);
     operatorLines.forEach((line, i) => {
-      doc.text(line, colOperadorX + 2, rowTop + 16 + i * 11);
+      doc.text(line, colOperadorX + CELL_PAD, rowTop + 17 + i * LINE_H);
     });
 
     doc.setFont(undefined, 'bold');
     doc.setFontSize(8.5);
     doc.setTextColor(...INK);
-    doc.text(formatDurationLabel(task.start, task.end), colDuracaoX + 2, rowTop + 16);
+    doc.text(formatDurationLabel(task.start, task.end), colDuracaoX + CELL_PAD, rowTop + 17);
 
     y = rowTop + rowHeight;
     doc.setDrawColor(...BORDER);
     doc.setLineWidth(0.75);
-    doc.line(MARGIN, y - 6, pageW - MARGIN, y - 6);
+    doc.line(MARGIN, y - 8, pageW - MARGIN, y - 8);
   });
 
   const total = sorted.length;
@@ -267,9 +298,19 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
     return diff > 0 ? sum + diff : sum;
   }, 0);
   const totalDurationLabel = `${Math.floor(totalMinutes / 60)}h ${String(totalMinutes % 60).padStart(2, '0')}min`;
+  const categoryOccurrences = sorted.reduce((counts, task) => {
+    const category = task.categoryId ? categories.find((item) => item.id === task.categoryId) : null;
+    const categoryName = category ? category.name.toUpperCase() : 'SEM CATEGORIA';
+    counts.set(categoryName, (counts.get(categoryName) || 0) + 1);
+    return counts;
+  }, new Map());
+  const categoryMetrics = [...categoryOccurrences.entries()].map(([label, value]) => ({ label, value: String(value), color: INK }));
+  const categoryColumns = Math.min(4, categoryMetrics.length);
+  const categoryRows = Math.ceil(categoryMetrics.length / categoryColumns);
+  const categoryRowHeight = 42;
 
-  const cardHeight = 92;
-  y += 14;
+  const cardHeight = 98 + categoryRows * categoryRowHeight;
+  y += 16;
   if (y + cardHeight > pageH - FOOTER_RESERVE) {
     doc.addPage();
     y = 46;
@@ -282,9 +323,9 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
   doc.setFont(undefined, 'bold');
   doc.setFontSize(9.5);
   doc.setTextColor(...INK);
-  doc.text('RESUMO DO DIA', MARGIN + 16, y + 22, { charSpace: 0.4 });
+  doc.text('RESUMO DO DIA', MARGIN + 18, y + 22, { charSpace: 0.4 });
   doc.setDrawColor(...BORDER);
-  doc.line(MARGIN + 16, y + 30, pageW - MARGIN - 16, y + 30);
+  doc.line(MARGIN + 18, y + 30, pageW - MARGIN - 18, y + 30);
 
   const metrics = [
     { label: 'Total Ocorrências', value: String(total), color: INK },
@@ -303,6 +344,24 @@ export function exportDiaryPdf({ dateKey, tasks, categories, filterDescription }
     doc.setFontSize(15);
     doc.setTextColor(...metric.color);
     doc.text(metric.value, cx, y + 74, { align: 'center' });
+  });
+
+  doc.setDrawColor(...BORDER);
+  doc.line(MARGIN + 18, y + 89, pageW - MARGIN - 18, y + 89);
+  const categoryColW = tableW / categoryColumns;
+  categoryMetrics.forEach((metric, index) => {
+    const column = index % categoryColumns;
+    const row = Math.floor(index / categoryColumns);
+    const cx = MARGIN + categoryColW * column + categoryColW / 2;
+    const rowY = y + 107 + row * categoryRowHeight;
+    doc.setFont(undefined, 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text(fitText(doc, metric.label, categoryColW - 16), cx, rowY, { align: 'center' });
+    doc.setFont(undefined, 'bold');
+    doc.setFontSize(15);
+    doc.setTextColor(...metric.color);
+    doc.text(metric.value, cx, rowY + 22, { align: 'center' });
   });
 
   const totalPages = doc.internal.getNumberOfPages();

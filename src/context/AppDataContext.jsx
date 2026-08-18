@@ -70,6 +70,8 @@ export function AppDataProvider({ children }) {
         categoryId: input.categoryId || null,
         userEmail: currentUser.email,
         userName: currentUser.name,
+        isEdited: false,
+        editedAt: null,
       });
       await repo.saveSharedData(shared);
       setDays({ ...shared.days });
@@ -85,6 +87,8 @@ export function AppDataProvider({ children }) {
       const task = day.tasks.find((t) => t.id === taskId);
       if (!task || task.userEmail !== currentUser.email) return;
       Object.assign(task, patch);
+      task.isEdited = true;
+      task.editedAt = new Date().toISOString();
       await repo.saveSharedData(shared);
       setDays({ ...shared.days });
     },

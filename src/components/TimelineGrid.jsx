@@ -1,6 +1,6 @@
 import { useMemo } from 'react';
 import { layoutTasks } from '../utils/layoutTasks';
-import { minutesToLabel, hexToRgba } from '../utils/dateUtils';
+import { minutesToLabel } from '../utils/dateUtils';
 import { MIN_HOUR_PX, MIN_BLOCK_H } from '../utils/constants';
 import { EventBlock } from './EventBlock';
 
@@ -52,7 +52,6 @@ export function TimelineGrid({
             const category = task.categoryId ? categories.find((c) => c.id === task.categoryId) : null;
             const fallback = fallbackColors[task.id % fallbackColors.length];
             const lineColor = category ? category.color : fallback.line;
-            const bgColor = category ? hexToRgba(category.color, 0.14) : fallback.bg;
             const canEdit = !dayClosed && task.userEmail === currentUserEmail;
 
             const style = {
@@ -61,7 +60,6 @@ export function TimelineGrid({
               minHeight: `${MIN_BLOCK_H}px`,
               left: `calc(${leftPct}% + ${col === 0 ? 0 : gap / 2}px)`,
               width: `calc(${widthPct}% - ${gap}px)`,
-              '--ev-bg': bgColor,
               '--ev-line': lineColor,
             };
 

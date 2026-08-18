@@ -10,12 +10,6 @@ function write(key, value) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
-// This object is the only place in the app that talks to localStorage.
-// Every method returns a Promise on purpose, even though the current
-// implementation is synchronous under the hood. Views and contexts always
-// call it with `await`, so the day this needs to become a real HTTP client
-// (fetch("/api/..."), Supabase, Firebase, etc.) the only file that changes
-// is this one — nothing in context/ or views/ has to know the difference.
 export const repo = {
   async getUsers() {
     return read('mx_users', []);

@@ -37,7 +37,11 @@ export function PassadosView() {
   if (!selectedDate || !closedDays.includes(selectedDate)) {
     return (
       <>
-        <Header title="Diários Passados" subtitle={`${closedDays.length} dia(s) encerrado(s)`} actions={null} />
+        <Header
+          title="Diários Passados"
+          subtitle={`${closedDays.length} dia(s) encerrado(s)`}
+          actions={null}
+        />
         <div className="content-wrapper">
           {closedDays.length === 0 ? (
             <div className="placeholder">Nenhum diário encerrado ainda.</div>

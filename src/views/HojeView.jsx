@@ -14,7 +14,7 @@ import { filterTasksList, buildFilterDescription } from '../utils/filters';
 import { exportDiaryPdf } from '../utils/exportPdf';
 import { FALLBACK_COLORS } from '../utils/constants';
 
-export function HojeView() {
+export function HojeView({ theme, onToggleTheme }) {
   const { currentUser } = useAuth();
   const { settings, days, categories, addTask, updateTask, removeTask, closeDayManually } = useAppData();
   const users = useUsers();
@@ -84,6 +84,18 @@ export function HojeView() {
             <Button variant="ghost" icon={ICONS.download} onClick={handleExport}>
               Exportar PDF
             </Button>
+            <label className="theme-control">
+              <span className="theme-control__label">Modo escuro</span>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={theme === 'dark'}
+                  onChange={onToggleTheme}
+                  aria-label="Ativar modo escuro"
+                />
+                <span className="switch-track" />
+              </span>
+            </label>
           </>
         }
       />
