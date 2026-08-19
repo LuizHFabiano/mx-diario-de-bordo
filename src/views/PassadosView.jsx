@@ -11,6 +11,11 @@ import { formatLongDate, parseDateKey, timeStrToMinutes } from '../utils/dateUti
 import { filterTasksList, buildFilterDescription } from '../utils/filters';
 import { exportDiaryPdf } from '../utils/exportPdf';
 import { FALLBACK_COLORS } from '../utils/constants';
+import { DateDropdown } from '../components/DateDropdown';
+
+function normalizeSearch(value) {
+  return value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
 
 export function PassadosView() {
   const { currentUser } = useAuth();
@@ -19,11 +24,28 @@ export function PassadosView() {
   const [selectedDate, setSelectedDate] = useState(null);
   const [filterUserEmail, setFilterUserEmail] = useState('all');
   const [filterCategoryIds, setFilterCategoryIds] = useState(() => new Set());
+  const [dateQuery, setDateQuery] = useState('');
+  const [dayFilter, setDayFilter] = useState('');
+  const [monthFilter, setMonthFilter] = useState('');
+  const [yearFilter, setYearFilter] = useState('');
 
   const closedDays = useMemo(
     () => Object.keys(days).filter((k) => days[k].closed).sort().reverse(),
     [days]
   );
+  const visibleClosedDays = useMemo(() => {
+    const query = normalizeSearch(dateQuery.trim());
+    return closedDays.filter((key) => {
+      const date = parseDateKey(key);
+      const localizedDate = formatLongDate(date);
+      const numericDate = new Intl.DateTimeFormat('pt-BR').format(date);
+      const matchesDay = !dayFilter || date.getDate() === Number(dayFilter);
+      const matchesMonth = !monthFilter || date.getMonth() + 1 === Number(monthFilter);
+      const matchesYear = !yearFilter || date.getFullYear() === Number(yearFilter);
+      const matchesQuery = !query || [key, localizedDate, numericDate].some((value) => normalizeSearch(value).includes(query));
+      return matchesDay && matchesMonth && matchesYear && matchesQuery;
+    });
+  }, [closedDays, dateQuery, dayFilter, monthFilter, yearFilter]);
 
   function toggleCategory(id) {
     setFilterCategoryIds((prev) => {
@@ -46,13 +68,59 @@ export function PassadosView() {
           {closedDays.length === 0 ? (
             <div className="placeholder">Nenhum diário encerrado ainda.</div>
           ) : (
-            <div className="day-list">
-              {closedDays.map((key) => (
-                <button key={key} type="button" className="day-list__item" onClick={() => setSelectedDate(key)}>
-                  {formatLongDate(parseDateKey(key))} · {days[key].tasks.length} atividade(s)
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="day-list-controls">
+                <div className="day-list-search">
+                  <input
+                    type="text"
+                    placeholder="Filtrar por data..."
+                    value={dateQuery}
+                    onChange={(event) => setDateQuery(event.target.value)}
+                    aria-label="Filtrar diários por data"
+                  />
+                </div>
+                <div className="date-fields" aria-label="Filtros de data">
+                  <DateDropdown
+                    label="Dia"
+                    value={dayFilter}
+                    onChange={setDayFilter}
+                    options={Array.from({ length: 31 }, (_, index) => ({
+                      value: String(index + 1),
+                      label: String(index + 1).padStart(2, '0'),
+                    }))}
+                  />
+                  <DateDropdown
+                    label="Mês"
+                    value={monthFilter}
+                    onChange={setMonthFilter}
+                    options={Array.from({ length: 12 }, (_, index) => ({
+                      value: String(index + 1),
+                      label: String(index + 1).padStart(2, '0'),
+                    }))}
+                  />
+                  <DateDropdown
+                    label="Ano"
+                    value={yearFilter}
+                    onChange={setYearFilter}
+                    options={[...new Set(closedDays.map((key) => key.slice(0, 4)))].sort().reverse().map((year) => ({
+                      value: year,
+                      label: year,
+                    }))}
+                  />
+                </div>
+              </div>
+              {visibleClosedDays.length ? (
+                <div className="day-list">
+                  {visibleClosedDays.map((key) => (
+                    <button key={key} type="button" className="day-list__item" onClick={() => setSelectedDate(key)}>
+                      {formatLongDate(parseDateKey(key))} · {days[key].tasks.length} atividade(s)
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p className="day-list__empty">Nenhum diário corresponde à data pesquisada.</p>
+              )}
+            </>
           )}
         </div>
       </>

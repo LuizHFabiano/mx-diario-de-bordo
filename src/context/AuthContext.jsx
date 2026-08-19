@@ -36,7 +36,7 @@ export function AuthProvider({ children }) {
     if (password.length < 4) {
       return { ok: false, error: 'A senha deve ter ao menos 4 caracteres.' };
     }
-    const user = { name: name || email, email, password };
+    const user = { name: name || email, email, password, role: 'member' };
     users.push(user);
     await repo.saveUsers(users);
     await repo.setSession(user.email);

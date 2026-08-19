@@ -3,6 +3,22 @@ import { Button } from './Button';
 import { ICONS } from '../icons';
 import { timeStrToMinutes } from '../utils/dateUtils';
 
+function formatTimeValue(value) {
+  const digits = value.replace(/\D/g, '').slice(0, 4);
+  if (digits.length < 2) return digits;
+
+  const hours = Math.min(Number(digits.slice(0, 2)), 23);
+  const hourValue = String(hours).padStart(2, '0');
+  if (digits.length < 4) return `${hourValue}:${digits.slice(2)}`;
+
+  const minutes = Math.min(Number(digits.slice(2, 4)), 59);
+  return `${hourValue}:${String(minutes).padStart(2, '0')}`;
+}
+
+function isValidTime(value) {
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
 export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
   const [title, setTitle] = useState('');
   const [start, setStart] = useState('09:00');
@@ -38,6 +54,14 @@ export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
 
   function handleSubmit(e) {
     e.preventDefault();
+    if (!isValidTime(start)) {
+      setError('Informe um horário de início válido.');
+      return;
+    }
+    if (end && !isValidTime(end)) {
+      setError('Informe um horário de término válido.');
+      return;
+    }
     if (end && timeStrToMinutes(end) <= timeStrToMinutes(start)) {
       setError('O horário de término deve ser depois do início.');
       return;
@@ -83,11 +107,28 @@ export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
           <div className="field-row">
             <div className="field">
               <label htmlFor="fieldInicio">Horário de início</label>
-              <input id="fieldInicio" type="time" required value={start} onChange={(e) => setStart(e.target.value)} />
+              <input
+                id="fieldInicio"
+                type="text"
+                maxLength="5"
+                placeholder="00:00"
+                inputMode="numeric"
+                required
+                value={start}
+                onInput={(e) => setStart(formatTimeValue(e.currentTarget.value))}
+              />
             </div>
             <div className="field">
               <label htmlFor="fieldFim">Horário de término (opcional)</label>
-              <input id="fieldFim" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
+              <input
+                id="fieldFim"
+                type="text"
+                maxLength="5"
+                placeholder="00:00"
+                inputMode="numeric"
+                value={end}
+                onInput={(e) => setEnd(formatTimeValue(e.currentTarget.value))}
+              />
             </div>
           </div>
           {error && <p className="field__error is-visible">{error}</p>}
