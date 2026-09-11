@@ -1,6 +1,7 @@
 import { ICONS } from "../icons";
 import logoMx from "../assets/logo-mx.png";
 import logoMxDark from "../assets/logo-mx-dark.png";
+import { useAuth } from "../context/AuthContext";
 
 const NAV_ITEMS = [
   { key: "hoje", label: "Diários de Hoje", icon: ICONS.doc },
@@ -8,6 +9,7 @@ const NAV_ITEMS = [
 ];
 
 export function Sidebar({ view, onChangeView, theme }) {
+  const { currentUser } = useAuth();
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -29,6 +31,16 @@ export function Sidebar({ view, onChangeView, theme }) {
             <span>{item.label}</span>
           </button>
         ))}
+        {currentUser.role === "ADMIN" && (
+          <button
+            type="button"
+            className={`nav__item${view === "admin" ? " is-active" : ""}`}
+            onClick={() => onChangeView("admin")}
+          >
+            <img src={ICONS.lock} alt="" />
+            <span>Administração</span>
+          </button>
+        )}
       </nav>
       <div className="sidebar__footer">
         <button

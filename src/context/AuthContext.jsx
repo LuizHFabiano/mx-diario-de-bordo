@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { repo } from '../data/localRepository';
+import { apiClient } from '../data/apiClient';
 
 const AuthContext = createContext(null);
 
@@ -9,65 +9,54 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     (async () => {
-      const email = await repo.getSession();
-      if (email) {
-        const users = await repo.getUsers();
-        const found = users.find((u) => u.email === email);
-        if (found) setCurrentUser(found);
+      try {
+        const { user } = await apiClient('/api/auth/me');
+        setCurrentUser(user);
+      } catch {
+        setCurrentUser(null);
       }
       setReady(true);
     })();
   }, []);
 
-  const login = useCallback(async (email, password) => {
-    const users = await repo.getUsers();
-    const user = users.find((u) => u.email === email && u.password === password);
-    if (!user) return { ok: false, error: 'E-mail ou senha inválidos.' };
-    await repo.setSession(user.email);
-    setCurrentUser(user);
-    return { ok: true };
-  }, []);
-
-  const signup = useCallback(async (name, email, password) => {
-    const users = await repo.getUsers();
-    if (users.some((u) => u.email === email)) {
-      return { ok: false, error: 'Já existe uma conta com este e-mail.' };
+  const login = useCallback(async (username, password) => {
+    try {
+      const { user } = await apiClient('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      });
+      setCurrentUser(user);
+      return { ok: true, mustChangePassword: user.mustChangePassword };
+    } catch (error) {
+      return { ok: false, error: error.message };
     }
-    if (password.length < 4) {
-      return { ok: false, error: 'A senha deve ter ao menos 4 caracteres.' };
-    }
-    const user = { name: name || email, email, password, role: 'member' };
-    users.push(user);
-    await repo.saveUsers(users);
-    await repo.setSession(user.email);
-    setCurrentUser(user);
-    return { ok: true };
   }, []);
 
   const logout = useCallback(async () => {
-    await repo.clearSession();
-    setCurrentUser(null);
+    try {
+      await apiClient('/api/auth/logout', { method: 'POST' });
+    } finally {
+      setCurrentUser(null);
+    }
   }, []);
 
   const changePassword = useCallback(
     async (current, next) => {
-      const users = await repo.getUsers();
-      const user = users.find((u) => u.email === currentUser.email);
-      if (!user || user.password !== current) {
-        return { ok: false, error: 'Senha atual incorreta.' };
+      try {
+        await apiClient('/api/auth/change-password', {
+          method: 'POST',
+          body: JSON.stringify({ currentPassword: current, newPassword: next }),
+        });
+        setCurrentUser((user) => ({ ...user, mustChangePassword: false }));
+        return { ok: true };
+      } catch (error) {
+        return { ok: false, error: error.message };
       }
-      if (next.length < 4) {
-        return { ok: false, error: 'A nova senha deve ter ao menos 4 caracteres.' };
-      }
-      user.password = next;
-      await repo.saveUsers(users);
-      setCurrentUser(user);
-      return { ok: true };
     },
     [currentUser]
   );
 
-  const value = { currentUser, ready, login, signup, logout, changePassword };
+  const value = { currentUser, ready, login, logout, changePassword };
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }
 

@@ -9,7 +9,7 @@ export function TimelineGrid({
   dayEndMin,
   tasks,
   categories,
-  currentUserEmail,
+  canEditTask,
   dayClosed,
   showNowLine,
   nowMinutes,
@@ -52,7 +52,7 @@ export function TimelineGrid({
             const category = task.categoryId ? categories.find((c) => c.id === task.categoryId) : null;
             const fallback = fallbackColors[task.id % fallbackColors.length];
             const lineColor = category ? category.color : fallback.line;
-            const canEdit = !dayClosed && task.userEmail === currentUserEmail;
+            const canEdit = !dayClosed && canEditTask(task);
 
             const style = {
               top: pct(start),

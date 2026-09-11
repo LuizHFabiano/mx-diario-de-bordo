@@ -6,6 +6,8 @@ import { Sidebar } from './components/Sidebar';
 import { HojeView } from './views/HojeView';
 import { PassadosView } from './views/PassadosView';
 import { ConfigView } from './views/ConfigView';
+import { AdminView } from './views/AdminView';
+import { RequiredPasswordChange } from './components/RequiredPasswordChange';
 import { useTheme } from './hooks/useTheme';
 
 function AppShell() {
@@ -15,6 +17,7 @@ function AppShell() {
 
   if (!ready) return null;
   if (!currentUser) return <AuthScreen theme={theme} />;
+  if (currentUser.mustChangePassword) return <RequiredPasswordChange theme={theme} />;
 
   return (
     <AppDataProvider>
@@ -24,6 +27,7 @@ function AppShell() {
           {view === 'hoje' && <HojeView theme={theme} onToggleTheme={toggleTheme} />}
           {view === 'passados' && <PassadosView />}
           {view === 'config' && <ConfigView />}
+          {view === 'admin' && currentUser.role === 'ADMIN' && <AdminView />}
         </main>
       </div>
     </AppDataProvider>

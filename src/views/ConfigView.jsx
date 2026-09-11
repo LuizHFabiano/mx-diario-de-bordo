@@ -10,6 +10,7 @@ import { toDatetimeLocalValue, timeStrToMinutes } from "../utils/dateUtils";
 
 export function ConfigView() {
   const { currentUser, logout, changePassword } = useAuth();
+  const isAdmin = currentUser.role === "ADMIN";
   const {
     settings,
     categories,
@@ -125,7 +126,7 @@ export function ConfigView() {
     <>
       <Header
         title="Configurações"
-        subtitle={currentUser.email}
+        subtitle={currentUser.username}
         actions={null}
       />
       <div className="content-wrapper">
@@ -142,6 +143,7 @@ export function ConfigView() {
                     type="time"
                     required
                     value={scheduleForm.dayStart}
+                    disabled={!isAdmin}
                     onChange={(e) =>
                       setScheduleForm({
                         ...scheduleForm,
@@ -157,6 +159,7 @@ export function ConfigView() {
                     type="time"
                     required
                     value={scheduleForm.dayEnd}
+                    disabled={!isAdmin}
                     onChange={(e) =>
                       setScheduleForm({
                         ...scheduleForm,
@@ -170,7 +173,7 @@ export function ConfigView() {
                 <p className="field__error is-visible">{scheduleError}</p>
               )}
               <div className="config-actions">
-                <Button type="submit" variant="primary">
+                <Button type="submit" variant="primary" disabled={!isAdmin}>
                   Salvar horário
                 </Button>
               </div>
@@ -194,25 +197,25 @@ export function ConfigView() {
                   />
                   <span className="category-row__name">{c.name}</span>
                   <div className="category-row__actions">
-                    <button
+                    {isAdmin && <button
                       type="button"
                       className="icon-btn"
                       onClick={() => startEditCategory(c)}
                     >
                       <img src={ICONS.edit} alt="" />
-                    </button>
-                    <button
+                    </button>}
+                    {isAdmin && <button
                       type="button"
                       className="icon-btn"
                       onClick={() => handleDeleteCategory(c.id)}
                     >
                       <img src={ICONS.trash} alt="" />
-                    </button>
+                    </button>}
                   </div>
                 </div>
               ))}
             </div>
-            <form className="add-category-form" onSubmit={handleCategorySubmit}>
+            {isAdmin && <form className="add-category-form" onSubmit={handleCategorySubmit}>
               <div className="field">
                 <label htmlFor="cfgCatName">Nome</label>
                 <input
@@ -245,7 +248,7 @@ export function ConfigView() {
                   Cancelar
                 </Button>
               )}
-            </form>
+            </form>}
           </div>
 
           <div className="config-card">
@@ -258,6 +261,7 @@ export function ConfigView() {
                 <input
                   type="checkbox"
                   checked={settings.allowManualClose}
+                  disabled={!isAdmin}
                   onChange={(e) =>
                     updateSettings({ allowManualClose: e.target.checked })
                   }

@@ -483,6 +483,17 @@ button{ cursor:pointer; }
 }
 .config-card h3{ margin:0 0 4px; font-family:var(--font-display); font-size:14.5px; }
 .config-card p.hint{ margin:0 0 16px; font-size:12px; color:var(--color-muted); }
+.auth-title{ margin:0 0 8px; font-family:var(--font-display); font-size:18px; }
+.admin-grid{ grid-template-columns:minmax(280px,.9fr) minmax(360px,1.3fr); }
+.admin-fieldset{ border:1px solid var(--color-border); border-radius:var(--radius-sm); margin:16px 0; padding:10px 12px; }
+.admin-fieldset legend{ padding:0 4px; font-size:12px; color:var(--color-ink-soft); }
+.check-row{ display:block; margin:8px 0; font-size:13px; color:var(--color-ink-soft); }
+.check-row input{ margin-right:7px; }
+.admin-user-list{ display:flex; flex-direction:column; gap:8px; }
+.admin-user-row{ display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid var(--color-border); border-radius:var(--radius-sm); padding:12px; }
+.admin-user-row strong,.admin-user-row span,.admin-user-row small{ display:block; }
+.admin-user-row span,.admin-user-row small{ color:var(--color-muted); font-size:12px; margin-top:2px; }
+@media (max-width: 760px){ .admin-grid{ grid-template-columns:1fr; }.admin-user-row{ align-items:flex-start; flex-direction:column; } }
 .config-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
 .clock-readout{ font-family:var(--font-mono); font-size:13px; color:var(--color-ink-soft); margin:2px 0 16px; }
 

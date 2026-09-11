@@ -9,7 +9,7 @@ export function FilterBar({ users, categories, filterUserEmail, onChangeUser, fi
         <select className="filter-select" value={filterUserEmail} onChange={(e) => onChangeUser(e.target.value)}>
           <option value="all">Todos</option>
           {users.map((u) => (
-            <option key={u.email} value={u.email}>
+            <option key={u.username} value={u.username}>
               {u.name}
             </option>
           ))}

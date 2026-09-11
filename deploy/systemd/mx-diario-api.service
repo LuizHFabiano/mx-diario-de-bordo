@@ -1,0 +1,23 @@
+[Unit]
+Description=MX Diário de Bordo API
+After=network.target postgresql.service
+Wants=postgresql.service
+
+[Service]
+Type=simple
+User=mxdiario
+Group=mxdiario
+WorkingDirectory=/opt/mx-diario-de-bordo/backend
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=/etc/mx-diario/backend.env
+ExecStart=/usr/bin/npm run start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ReadWritePaths=/opt/mx-diario-de-bordo/backend/.next
+
+[Install]
+WantedBy=multi-user.target

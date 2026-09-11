@@ -1,0 +1,124 @@
+import argon2 from "argon2";
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { AuditAction, Role } from "@/generated/prisma/client";
+import { requireAdmin } from "@/lib/authorization";
+import { prisma } from "@/lib/prisma";
+
+const updateUserSchema = z.object({
+  name: z.string().trim().min(2).max(120).optional(),
+  role: z.enum([Role.ADMIN, Role.MANAGER, Role.ATTENDANT]).optional(),
+  isActive: z.boolean().optional(),
+  teamIds: z.array(z.string().uuid()).optional(),
+  primaryTeamId: z.string().uuid().nullable().optional(),
+  managedTeamIds: z.array(z.string().uuid()).optional(),
+  password: z.string().min(9).max(256).optional(),
+});
+
+export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+  const { session, response } = await requireAdmin();
+  if (response || !session) return response!;
+
+  const { id } = await params;
+  const payload = await request.json().catch(() => null);
+  const parsed = updateUserSchema.safeParse(payload);
+  if (!parsed.success) {
+    return NextResponse.json({ error: "Dados do usuário inválidos." }, { status: 400 });
+  }
+
+  const existing = await prisma.user.findUnique({
+    where: { id },
+    include: { memberships: true, managedTeams: true },
+  });
+  if (!existing) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
+
+  const data = parsed.data;
+  const role = data.role ?? existing.role;
+  const teamIds = [...new Set(data.teamIds ?? existing.memberships.map((membership) => membership.teamId))];
+  const managedTeamIds = [
+    ...new Set(data.managedTeamIds ?? existing.managedTeams.map((management) => management.teamId)),
+  ];
+  const primaryTeamId =
+    data.primaryTeamId === undefined
+      ? existing.memberships.find((membership) => membership.isPrimary)?.teamId ?? teamIds[0]
+      : data.primaryTeamId ?? undefined;
+  const isActive = data.isActive ?? existing.isActive;
+
+  if (role !== Role.ADMIN && teamIds.length === 0) {
+    return NextResponse.json({ error: "Atendentes e gestores precisam pertencer a uma equipe." }, { status: 400 });
+  }
+  if (primaryTeamId && !teamIds.includes(primaryTeamId)) {
+    return NextResponse.json({ error: "A equipe principal deve pertencer ao usuário." }, { status: 400 });
+  }
+  if (managedTeamIds.some((teamId) => !teamIds.includes(teamId))) {
+    return NextResponse.json({ error: "Um gestor deve pertencer às equipes que gerencia." }, { status: 400 });
+  }
+  if (managedTeamIds.length > 0 && role === Role.ATTENDANT) {
+    return NextResponse.json({ error: "Atendentes não podem gerenciar equipes." }, { status: 400 });
+  }
+
+  if (existing.role === Role.ADMIN && existing.isActive && (role !== Role.ADMIN || !isActive)) {
+    const activeAdmins = await prisma.user.count({ where: { role: Role.ADMIN, isActive: true } });
+    if (activeAdmins <= 1) {
+      return NextResponse.json({ error: "Não é permitido desativar ou rebaixar o último administrador ativo." }, { status: 400 });
+    }
+  }
+
+  if (data.teamIds !== undefined) {
+    const teams = await prisma.team.findMany({
+      where: { id: { in: teamIds }, isActive: true },
+      select: { id: true },
+    });
+    if (teams.length !== teamIds.length) {
+      return NextResponse.json({ error: "Uma ou mais equipes são inválidas ou estão inativas." }, { status: 400 });
+    }
+  }
+
+  const passwordHash = data.password
+    ? await argon2.hash(data.password, { type: argon2.argon2id })
+    : undefined;
+  const user = await prisma.$transaction(async (tx) => {
+    if (data.teamIds !== undefined) {
+      await tx.userTeam.deleteMany({ where: { userId: id } });
+      if (teamIds.length > 0) {
+        await tx.userTeam.createMany({
+          data: teamIds.map((teamId) => ({ userId: id, teamId, isPrimary: teamId === primaryTeamId })),
+        });
+      }
+    }
+    if (data.managedTeamIds !== undefined) {
+      await tx.teamManager.deleteMany({ where: { userId: id } });
+      if (managedTeamIds.length > 0) {
+        await tx.teamManager.createMany({ data: managedTeamIds.map((teamId) => ({ userId: id, teamId })) });
+      }
+    }
+
+    const updated = await tx.user.update({
+      where: { id },
+      data: {
+        name: data.name,
+        role: data.role,
+        isActive: data.isActive,
+        passwordHash,
+        mustChangePassword: data.password ? true : undefined,
+      },
+      include: { memberships: { include: { team: true } }, managedTeams: { include: { team: true } } },
+    });
+    if (data.password || data.isActive === false) {
+      await tx.session.deleteMany({ where: { userId: id } });
+    }
+    await tx.auditLog.create({
+      data: {
+        actorId: session.userId,
+        action: AuditAction.USER_UPDATED,
+        entityType: "user",
+        entityId: id,
+        metadata: { updatedFields: Object.keys(data).filter((key) => key !== "password") },
+      },
+    });
+    return updated;
+  });
+
+  const { passwordHash: _, ...safeUser } = user;
+  return NextResponse.json({ user: safeUser });
+}

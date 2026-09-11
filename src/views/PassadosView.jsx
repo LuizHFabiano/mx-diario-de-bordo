@@ -1,7 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useAppData } from '../context/AppDataContext';
 import { useAuth } from '../context/AuthContext';
-import { useUsers } from '../hooks/useUsers';
 import { Header } from '../components/Header';
 import { Button } from '../components/Button';
 import { FilterBar } from '../components/FilterBar';
@@ -19,8 +18,7 @@ function normalizeSearch(value) {
 
 export function PassadosView() {
   const { currentUser } = useAuth();
-  const { settings, days, categories } = useAppData();
-  const users = useUsers();
+  const { settings, days, categories, users, canEditTask } = useAppData();
   const [selectedDate, setSelectedDate] = useState(null);
   const [filterUserEmail, setFilterUserEmail] = useState('all');
   const [filterCategoryIds, setFilterCategoryIds] = useState(() => new Set());
@@ -176,7 +174,7 @@ export function PassadosView() {
             dayEndMin={endMin}
             tasks={filteredTasks}
             categories={categories}
-            currentUserEmail={currentUser.email}
+            canEditTask={canEditTask}
             dayClosed={true}
             showNowLine={false}
             nowMinutes={null}

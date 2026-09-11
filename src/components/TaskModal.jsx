@@ -19,12 +19,13 @@ function isValidTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
-export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
+export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onSave, onDelete }) {
   const [title, setTitle] = useState('');
   const [start, setStart] = useState('09:00');
   const [end, setEnd] = useState('');
   const [description, setDescription] = useState('');
   const [categoryId, setCategoryId] = useState('');
+  const [teamId, setTeamId] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -34,12 +35,14 @@ export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
       setEnd(task.end || '');
       setDescription(task.description);
       setCategoryId(task.categoryId || '');
+      setTeamId(task.teamId || '');
     } else {
       setTitle('');
       setStart('09:00');
       setEnd('');
       setDescription('');
       setCategoryId('');
+      setTeamId(defaultTeamId || teams[0]?.id || '');
     }
     setError('');
   }, [task]);
@@ -72,6 +75,7 @@ export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
       end: end || null,
       description: description.trim(),
       categoryId: categoryId || null,
+      teamId,
     });
   }
 
@@ -132,6 +136,14 @@ export function TaskModal({ task, categories, onClose, onSave, onDelete }) {
             </div>
           </div>
           {error && <p className="field__error is-visible">{error}</p>}
+          {!task && (
+            <div className="field">
+              <label htmlFor="fieldEquipe">Equipe</label>
+              <select id="fieldEquipe" required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
+                {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              </select>
+            </div>
+          )}
           <div className="field">
             <label htmlFor="fieldCategoria">Categoria</label>
             <select id="fieldCategoria" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>

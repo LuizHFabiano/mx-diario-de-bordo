@@ -10,7 +10,7 @@ export function filterTasksList(tasks, filterUserEmail, filterCategoryIds) {
 export function buildFilterDescription(filterUserEmail, filterCategoryIds, categories, users) {
   const parts = [];
   if (filterUserEmail !== 'all') {
-    const user = users.find((u) => u.email === filterUserEmail);
+    const user = users.find((u) => u.username === filterUserEmail);
     parts.push(`Usuário: ${user ? user.name : filterUserEmail}`);
   }
   if (filterCategoryIds.size) {

@@ -1,175 +1,84 @@
 import { createContext, useCallback, useContext, useEffect, useState } from 'react';
-import { repo } from '../data/localRepository';
-import { timeStore } from '../lib/timeStore';
+import { apiClient } from '../data/apiClient';
 import { formatDateKey } from '../utils/dateUtils';
 import { useAuth } from './AuthContext';
 
 const AppDataContext = createContext(null);
-
 const DEFAULT_SETTINGS = { dayStart: '08:00', dayEnd: '23:00', allowManualClose: false };
+
+function range() {
+  const now = new Date();
+  return { from: formatDateKey(new Date(now.getFullYear() - 1, 0, 1)), to: formatDateKey(now) };
+}
 
 export function AppDataProvider({ children }) {
   const { currentUser } = useAuth();
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [days, setDays] = useState({});
   const [categories, setCategories] = useState([]);
+  const [users, setUsers] = useState([]);
+  const [teams, setTeams] = useState([]);
+  const [managedTeamIds, setManagedTeamIds] = useState([]);
+  const [memberTeamIds, setMemberTeamIds] = useState([]);
   const [ready, setReady] = useState(false);
 
   const load = useCallback(async () => {
-    const [shared, cats] = await Promise.all([repo.getSharedData(), repo.getCategories()]);
-    setSettings(shared.settings);
-    setDays(shared.days);
-    setCategories(cats);
+    const { from, to } = range();
+    const data = await apiClient(`/api/diary?from=${from}&to=${to}`);
+    setSettings(data.settings);
+    setDays(data.days);
+    setCategories(data.categories);
+    setUsers(data.users);
+    setTeams(data.teams);
+    setManagedTeamIds(data.managedTeamIds || []);
+    setMemberTeamIds(data.memberTeamIds || []);
     setReady(true);
   }, []);
 
+  useEffect(() => { load().catch(() => setReady(true)); }, [load]);
   useEffect(() => {
-    load();
+    const id = setInterval(() => load().catch(() => {}), 60_000);
+    return () => clearInterval(id);
   }, [load]);
 
-  const syncDays = useCallback(async () => {
-    const shared = await repo.getSharedData();
-    const now = new Date(Date.now() + timeStore.getOffset());
-    const todayKey = formatDateKey(now);
-    let changed = false;
-    Object.keys(shared.days).forEach((key) => {
-      if (key < todayKey && !shared.days[key].closed) {
-        shared.days[key].closed = true;
-        changed = true;
-      }
-    });
-    if (!shared.days[todayKey]) {
-      shared.days[todayKey] = { closed: false, tasks: [] };
-      changed = true;
-    }
-    if (changed) {
-      await repo.saveSharedData(shared);
-      setDays(shared.days);
-    }
-    return { todayKey, changed };
-  }, []);
-
-  useEffect(() => {
-    if (!ready) return;
-    syncDays();
-    const id = setInterval(syncDays, 5000);
-    return () => clearInterval(id);
-  }, [ready, syncDays]);
-
-  const addTask = useCallback(
-    async (dateKey, input) => {
-      const shared = await repo.getSharedData();
-      const day = shared.days[dateKey];
-      if (!day || day.closed) return;
-      day.tasks.push({
-        id: Date.now(),
-        title: input.title,
-        start: input.start,
-        end: input.end || null,
-        description: input.description,
-        categoryId: input.categoryId || null,
-        userEmail: currentUser.email,
-        userName: currentUser.name,
-        isEdited: false,
-        editedAt: null,
-      });
-      await repo.saveSharedData(shared);
-      setDays({ ...shared.days });
-    },
-    [currentUser]
-  );
-
-  const updateTask = useCallback(
-    async (dateKey, taskId, patch) => {
-      const shared = await repo.getSharedData();
-      const day = shared.days[dateKey];
-      if (!day || day.closed) return;
-      const task = day.tasks.find((t) => t.id === taskId);
-      if (!task || task.userEmail !== currentUser.email) return;
-      Object.assign(task, patch);
-      task.isEdited = true;
-      task.editedAt = new Date().toISOString();
-      await repo.saveSharedData(shared);
-      setDays({ ...shared.days });
-    },
-    [currentUser]
-  );
-
-  const removeTask = useCallback(
-    async (dateKey, taskId) => {
-      const shared = await repo.getSharedData();
-      const day = shared.days[dateKey];
-      if (!day || day.closed) return;
-      const task = day.tasks.find((t) => t.id === taskId);
-      if (!task || task.userEmail !== currentUser.email) return;
-      day.tasks = day.tasks.filter((t) => t.id !== taskId);
-      await repo.saveSharedData(shared);
-      setDays({ ...shared.days });
-    },
-    [currentUser]
-  );
-
+  const addTask = useCallback(async (dateKey, input) => {
+    await apiClient('/api/tasks', { method: 'POST', body: JSON.stringify({ date: dateKey, ...input }) });
+    await load();
+  }, [load]);
+  const updateTask = useCallback(async (_, taskId, patch) => {
+    await apiClient(`/api/tasks/${taskId}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    await load();
+  }, [load]);
+  const removeTask = useCallback(async (_, taskId) => {
+    await apiClient(`/api/tasks/${taskId}`, { method: 'DELETE' });
+    await load();
+  }, [load]);
   const closeDayManually = useCallback(async (dateKey) => {
-    const shared = await repo.getSharedData();
-    if (!shared.days[dateKey]) return;
-    shared.days[dateKey].closed = true;
-    await repo.saveSharedData(shared);
-    setDays({ ...shared.days });
-  }, []);
-
+    await apiClient(`/api/work-days/${dateKey}/close`, { method: 'POST' });
+    await load();
+  }, [load]);
   const updateSettings = useCallback(async (patch) => {
-    const shared = await repo.getSharedData();
-    shared.settings = { ...shared.settings, ...patch };
-    await repo.saveSharedData(shared);
-    setSettings(shared.settings);
+    const { settings: next } = await apiClient('/api/settings', { method: 'PATCH', body: JSON.stringify(patch) });
+    setSettings(next);
   }, []);
-
   const addCategory = useCallback(async (name, color) => {
-    const list = await repo.getCategories();
-    list.push({ id: `cat_${Date.now()}`, name, color });
-    await repo.saveCategories(list);
-    setCategories([...list]);
-  }, []);
-
+    await apiClient('/api/categories', { method: 'POST', body: JSON.stringify({ name, color }) });
+    await load();
+  }, [load]);
   const updateCategory = useCallback(async (id, patch) => {
-    const list = await repo.getCategories();
-    const category = list.find((c) => c.id === id);
-    if (category) Object.assign(category, patch);
-    await repo.saveCategories(list);
-    setCategories([...list]);
-  }, []);
-
+    await apiClient(`/api/categories/${id}`, { method: 'PATCH', body: JSON.stringify(patch) });
+    await load();
+  }, [load]);
   const deleteCategory = useCallback(async (id) => {
-    const list = (await repo.getCategories()).filter((c) => c.id !== id);
-    await repo.saveCategories(list);
-    setCategories(list);
+    await apiClient(`/api/categories/${id}`, { method: 'DELETE' });
+    await load();
+  }, [load]);
+  const canEditTask = useCallback((task) => {
+    if (currentUser.role === 'ADMIN' || task.userId === currentUser.id) return true;
+    return currentUser.role === 'MANAGER' && managedTeamIds.includes(task.teamId);
+  }, [currentUser, managedTeamIds]);
 
-    const shared = await repo.getSharedData();
-    Object.values(shared.days).forEach((day) => {
-      day.tasks.forEach((task) => {
-        if (task.categoryId === id) task.categoryId = null;
-      });
-    });
-    await repo.saveSharedData(shared);
-    setDays({ ...shared.days });
-  }, []);
-
-  const value = {
-    ready,
-    settings,
-    days,
-    categories,
-    syncDays,
-    addTask,
-    updateTask,
-    removeTask,
-    closeDayManually,
-    updateSettings,
-    addCategory,
-    updateCategory,
-    deleteCategory,
-  };
-
+  const value = { ready, settings, days, categories, users, teams, managedTeamIds, memberTeamIds, load, addTask, updateTask, removeTask, closeDayManually, updateSettings, addCategory, updateCategory, deleteCategory, canEditTask };
   return <AppDataContext.Provider value={value}>{children}</AppDataContext.Provider>;
 }
 

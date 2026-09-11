@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import { useAppData } from '../context/AppDataContext';
 import { useAuth } from '../context/AuthContext';
-import { useUsers } from '../hooks/useUsers';
 import { useSimulatedNow } from '../hooks/useSimulatedNow';
 import { Header } from '../components/Header';
 import { Button } from '../components/Button';
@@ -16,8 +15,8 @@ import { FALLBACK_COLORS } from '../utils/constants';
 
 export function HojeView({ theme, onToggleTheme }) {
   const { currentUser } = useAuth();
-  const { settings, days, categories, addTask, updateTask, removeTask, closeDayManually } = useAppData();
-  const users = useUsers();
+  const { settings, days, categories, users, teams, memberTeamIds, addTask, updateTask, removeTask, closeDayManually, canEditTask } = useAppData();
+  const writableTeams = teams.filter((team) => memberTeamIds.includes(team.id));
   const now = useSimulatedNow(15000);
   const todayKey = formatDateKey(now);
   const day = days[todayKey] || { closed: false, tasks: [] };
@@ -76,7 +75,7 @@ export function HojeView({ theme, onToggleTheme }) {
                 Criar
               </Button>
             )}
-            {!day.closed && settings.allowManualClose && (
+            {!day.closed && settings.allowManualClose && currentUser.role !== 'ATTENDANT' && (
               <Button variant="ghost" icon={ICONS.lock} onClick={handleCloseDay}>
                 Encerrar dia
               </Button>
@@ -120,7 +119,7 @@ export function HojeView({ theme, onToggleTheme }) {
             dayEndMin={endMin}
             tasks={filteredTasks}
             categories={categories}
-            currentUserEmail={currentUser.email}
+            canEditTask={canEditTask}
             dayClosed={day.closed}
             showNowLine={!day.closed}
             nowMinutes={nowMinutes}
@@ -138,6 +137,8 @@ export function HojeView({ theme, onToggleTheme }) {
         <TaskModal
           task={modalTask}
           categories={categories}
+          teams={writableTeams}
+          defaultTeamId={writableTeams[0]?.id}
           onClose={() => setModalTask(undefined)}
           onSave={handleSaveTask}
           onDelete={(id) => removeTask(todayKey, id)}
