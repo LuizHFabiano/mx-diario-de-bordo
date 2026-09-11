@@ -1,82 +1,158 @@
-# Diário de Bordo — MX Soluções (React SPA)
+# Testes e publicação — MX Diário de Bordo
 
-Migração do protótipo em HTML/CSS/JS único para um projeto React (Vite), organizado para
-crescer: hospedagem em servidor, painel admin e um backend real com banco de dados.
+## Situação atual
 
-## Rodando localmente
+O backend possui autenticação, sessões, administração de equipes e usuários no PostgreSQL. O front-end já consome essas APIs para login, troca de senha e área de administração.
 
-```bash
-npm install
+Categorias, dias e tarefas também estão no PostgreSQL. Um registro criado por uma conta é carregado pelas demais contas autenticadas. O `localStorage` deixou de ser usado para os dados operacionais do Diário.
+
+## Checklist de testes locais
+
+Execute o backend em um terminal:
+
+```powershell
+Set-Location backend
 npm run dev
 ```
 
-Acesse `http://localhost:5173`. Para gerar o build de produção:
+Em outro terminal, execute o front-end na raiz do repositório:
+
+```powershell
+npm run dev
+```
+
+Abra `http://localhost:5173` e valide:
+
+1. `GET http://localhost:3000/api/health` retorna `{"status":"ok","database":"connected"}`.
+2. Login inválido mostra erro e não entra no sistema.
+3. Login `admin` abre a opção **Administração** na lateral.
+4. Login de uma conta comum não exibe **Administração**.
+5. Uma conta criada com a senha padrão `Mudar@123` recebe tela obrigatória de troca de senha.
+6. Após trocar a senha, a conta entra e a troca deixa de ser solicitada.
+7. Administração cria uma conta de Atendente com uma equipe.
+8. Administração cria uma conta de Gestor, atribui equipes e marca as equipes que ela gerencia.
+9. Bloquear uma conta encerra as sessões dela; o próximo acesso é recusado.
+10. Reativar uma conta permite novo login.
+11. Sair encerra a sessão; atualizar a página não deve manter o acesso.
+12. Crie uma atividade como admin e confirme-a ao entrar com uma conta de gestor em outro navegador ou janela. Ela deve aparecer para ambas as contas.
+13. Um atendente só edita/exclui as próprias atividades; um gestor consegue alterar atividades das equipes que gerencia; admin altera qualquer atividade.
+
+## Arquitetura de produção
+
+```text
+Navegador
+    │ HTTPS
+Nginx (porta 443)
+    ├── arquivos estáticos do front-end Vite
+    └── /api → Next.js em 127.0.0.1:3000
+                   │
+              PostgreSQL em 127.0.0.1:5432
+                   │
+       dump diário → TrueNAS busca via rsync
+```
+
+O PostgreSQL e o Next.js não devem ser expostos diretamente na rede. O Nginx é a única porta pública da aplicação. O Next.js recomenda usar proxy reverso em self-hosting, em vez de expor o servidor diretamente. [Documentação do Next.js](https://nextjs.org/docs/app/guides/self-hosting)
+
+## Preparação do Ubuntu 24.04
+
+Antes de executar comandos remotos, confirme acesso por console ou SSH e o IP/CIDR administrativo autorizado para SSH. No servidor:
 
 ```bash
+sudo apt update
+sudo apt upgrade -y
+sudo apt install -y git nginx ufw fail2ban rsync postgresql postgresql-client
+```
+
+Instale Node.js 20.9 ou superior; Next.js 16 exige no mínimo essa versão. [Requisito oficial do Next.js](https://nextjs.org/docs/app/getting-started/installation) Antes de continuar, confirme com `node --version` e `npm --version`. Use a mesma versão principal do desenvolvimento (Node 24) sempre que possível.
+
+Crie a conta de sistema e as pastas da aplicação:
+
+```bash
+sudo useradd --system --create-home --shell /usr/sbin/nologin mxdiario
+sudo install -d -o mxdiario -g mxdiario /opt/mx-diario-de-bordo
+sudo install -d -o mxdiario -g mxdiario -m 700 /etc/mx-diario
+sudo install -d -o mxdiario -g mxdiario -m 700 /var/backups/mx-diario
+```
+
+## Banco de produção
+
+Conecte-se como o administrador PostgreSQL no próprio servidor e use senhas longas e exclusivas:
+
+```sql
+CREATE ROLE mx_diario_app LOGIN PASSWORD 'SENHA_DA_APLICACAO' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+CREATE ROLE mx_diario_backup LOGIN PASSWORD 'SENHA_DO_BACKUP' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT;
+CREATE DATABASE mx_diario_prod OWNER mx_diario_app ENCODING 'UTF8';
+GRANT CONNECT ON DATABASE mx_diario_prod TO mx_diario_backup;
+\c mx_diario_prod
+GRANT USAGE ON SCHEMA public TO mx_diario_backup;
+GRANT pg_read_all_data TO mx_diario_backup;
+```
+
+O backup será feito com `pg_dump` em formato customizado (`-Fc`), que é comprimido e restaurável com `pg_restore`. [Documentação do PostgreSQL](https://www.postgresql.org/docs/current/app-pgdump.html)
+
+## Primeiro deploy
+
+1. Copie ou clone este repositório em `/opt/mx-diario-de-bordo` e dê posse a `mxdiario`.
+2. Como `mxdiario`, instale dependências com `npm ci` na raiz e em `backend/`.
+3. Copie `deploy/env/backend.env.example` para `/etc/mx-diario/backend.env`, ajuste a senha e aplique `chmod 600`.
+4. Em `backend/`, execute:
+
+```bash
+npx prisma migrate deploy
+npx prisma generate
 npm run build
-npm run preview
 ```
 
-## Estrutura
+Use `migrate deploy`, nunca `migrate dev`, em produção. O primeiro aplica migrations pendentes sem resetar dados e não usa shadow database. [Documentação do Prisma](https://docs.prisma.io/docs/cli/migrate/deploy)
 
-```
-src/
-  data/localRepository.js   camada de dados (ver "Preparando para um backend real")
-  lib/timeStore.js          relógio simulado, compartilhado fora do React
-  hooks/                    useSimulatedNow, useUsers
-  context/                  AuthContext, AppDataContext
-  components/                peças reutilizáveis (Sidebar, Header, FilterBar, TimelineGrid,
-                              EventBlock, TaskModal, AuthScreen, Button)
-  views/                     HojeView, PassadosView, ConfigView
-  utils/                     datas, layout de sobreposição de tarefas, filtros, exportação PDF
-  icons.js                   ícones como data-URI SVG, consumidos só via <img>
+No primeiro deploy, crie o administrador e os dados-base adicionando temporariamente estas variáveis a `/etc/mx-diario/backend.env`, executando `npx prisma db seed` dentro de `backend/` e removendo as três linhas logo após o sucesso:
+
+```env
+INITIAL_ADMIN_NAME="admin"
+INITIAL_ADMIN_USERNAME="admin"
+INITIAL_ADMIN_PASSWORD="DEFINA_UMA_SENHA_FORTE_E_EXCLUSIVA"
 ```
 
-## Preparando para um backend real
+5. Na raiz, execute `npm run build` para gerar `frontend/dist`.
+6. Copie `deploy/systemd/mx-diario-api.service` para `/etc/systemd/system/`, então execute:
 
-Toda a persistência passa por um único arquivo: `src/data/localRepository.js`. Ele expõe um
-objeto `repo` com métodos assíncronos (`getUsers`, `saveSharedData`, `getCategories`, etc.).
-Hoje cada método lê/escreve no `localStorage`, mas a assinatura já é a de uma API remota.
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now mx-diario-api
+sudo systemctl status mx-diario-api
+```
 
-Quando houver um backend, o caminho é:
+7. Copie `deploy/nginx/mx-diario.conf` para `/etc/nginx/sites-available/mx-diario`, crie o link em `sites-enabled`, remova o site default se ainda estiver ativo e valide:
 
-1. Criar `src/data/apiRepository.js` com a mesma "forma" (os mesmos métodos, mesmos parâmetros
-   de entrada/saída), mas usando `fetch('/api/...')` por dentro.
-2. Trocar a importação `import { repo } from '../data/localRepository'` por
-   `import { repo } from '../data/apiRepository'` nos contexts (`AuthContext.jsx` e
-   `AppDataContext.jsx` são os dois únicos arquivos que importam `repo`).
+```bash
+sudo nginx -t
+sudo systemctl reload nginx
+curl http://127.0.0.1/api/health
+```
 
-Nada em `views/` ou `components/` precisa mudar, porque eles só conversam com os contexts.
+8. Copie o serviço e timer de backup para `/etc/systemd/system/`. Copie os exemplos de `backup.env` e `pgpass` para `/etc/mx-diario/`, complete as senhas e aplique `chmod 600`. Em seguida:
 
-## Painel admin (próximo passo sugerido, não implementado)
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now mx-diario-backup.timer
+sudo systemctl start mx-diario-backup.service
+sudo systemctl list-timers mx-diario-backup.timer
+```
 
-O modelo de usuário (`{ name, email, password }`) já está isolado em `mx_users`. Para um
-painel admin, o caminho natural é acrescentar um campo `role: 'admin' | 'member'` ao usuário,
-expor uma verificação `currentUser.role === 'admin'` em `AuthContext`, e usar isso para
-mostrar um item extra na `Sidebar` e uma view `AdminView` (por exemplo, gestão de usuários,
-substituição do dono de uma tarefa, ou exclusão de dias encerrados). A estrutura de
-contexts/repo atual já suporta essa extensão sem refatoração.
+9. Só então configure a coleta via `rsync` do TrueNAS. Faça um teste de restauração em uma base vazia antes de confiar no backup.
 
-## O que é simulado, e o que não é
+## Firewall
 
-- **Autenticação**: e-mail/senha comparados em texto puro contra `mx_users` no `localStorage`.
-  Funciona para o protótipo, mas **não é seguro para produção** — um backend real precisa
-  fazer hash de senha (bcrypt/argon2) e nunca devolver a senha ao cliente.
-- **Categorias**: globais, guardadas em `mx_categories`, compartilhadas por todos os usuários
-  do navegador atual (não há multi-tenant/empresa ainda).
-- **Diário**: compartilhado entre todos os usuários logados neste navegador (`mx_shared`) —
-  cada tarefa carrega `userEmail`/`userName` de quem criou, e só essa pessoa pode editar ou
-  excluir enquanto o dia estiver aberto.
-- **Relógio simulado**: em Configurações, para testar o encerramento automático à meia-noite
-  sem esperar a data virar de verdade.
+Antes de habilitar UFW, permita SSH exclusivamente da rede administrativa e mantenha um console alternativo aberto:
 
-## Funcionalidades preservadas desta rodada
+```bash
+sudo ufw default deny incoming
+sudo ufw default allow outgoing
+sudo ufw allow from REDE_ADMINISTRATIVA_CIDR to any port 22 proto tcp
+sudo ufw allow 80/tcp
+sudo ufw allow 443/tcp
+sudo ufw enable
+sudo ufw status verbose
+```
 
-- Vínculo obrigatório de cada tarefa a um usuário, com filtro por usuário e por categoria na
-  tela principal e nos diários passados.
-- Categorias globais com nome e cor personalizados, com CRUD em Configurações.
-- Botão "Encerrar dia" atrás de um toggle em Configurações, desabilitado por padrão.
-- Tarefas sem horário de término ("em aberto").
-- Exportação em PDF sempre disponível, respeitando os filtros ativos.
-- Interface 100% responsiva, sem `<svg>` no JSX (ícones via `<img>` com data-URI), CSS sem
-  comentários e sem `!important`.
+Não libere as portas 3000 ou 5432 no firewall.
