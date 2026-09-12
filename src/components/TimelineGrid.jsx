@@ -1,8 +1,12 @@
-import { useMemo } from 'react';
-import { layoutTasks } from '../utils/layoutTasks';
-import { minutesToLabel } from '../utils/dateUtils';
-import { MIN_HOUR_PX, MIN_BLOCK_H } from '../utils/constants';
-import { EventBlock } from './EventBlock';
+import { useMemo } from "react";
+import { layoutTasks } from "../utils/layoutTasks";
+import { minutesToLabel } from "../utils/dateUtils";
+import {
+  MIN_HOUR_PX,
+  MIN_BLOCK_H,
+  hashStringToIndex,
+} from "../utils/constants";
+import { EventBlock } from "./EventBlock";
 
 export function TimelineGrid({
   dayStartMin,
@@ -26,31 +30,54 @@ export function TimelineGrid({
     return marks;
   }, [dayStartMin, dayEndMin]);
 
-  const positioned = useMemo(() => layoutTasks(tasks, dayEndMin), [tasks, dayEndMin]);
+  const positioned = useMemo(
+    () => layoutTasks(tasks, dayEndMin),
+    [tasks, dayEndMin],
+  );
 
   const pct = (minutes) => `${((minutes - dayStartMin) / totalMinutes) * 100}%`;
 
-  const showNow = showNowLine && nowMinutes != null && nowMinutes >= dayStartMin && nowMinutes <= dayEndMin;
+  const showNow =
+    showNowLine &&
+    nowMinutes != null &&
+    nowMinutes >= dayStartMin &&
+    nowMinutes <= dayEndMin;
 
   return (
     <div className="timeline-grid-viewport">
-      <div className="timeline-grid" style={{ minHeight: `${totalHours * MIN_HOUR_PX}px` }}>
+      <div
+        className="timeline-grid"
+        style={{ minHeight: `${totalHours * MIN_HOUR_PX}px` }}
+      >
         {hourMarks.map((m) => (
-          <span key={`label-${m}`} className="hour-row__label" style={{ top: pct(m) }}>
+          <span
+            key={`label-${m}`}
+            className="hour-row__label"
+            style={{ top: pct(m) }}
+          >
             {minutesToLabel(m)}
           </span>
         ))}
         {hourMarks.slice(0, -1).map((m) => (
-          <div key={`row-${m}`} className="hour-row" style={{ top: pct(m), height: `${(1 / totalHours) * 100}%` }} />
+          <div
+            key={`row-${m}`}
+            className="hour-row"
+            style={{ top: pct(m), height: `${(1 / totalHours) * 100}%` }}
+          />
         ))}
-        {showNow && <div className="now-line" style={{ top: pct(nowMinutes) }} />}
+        {showNow && (
+          <div className="now-line" style={{ top: pct(nowMinutes) }} />
+        )}
         <div className="events-layer">
           {positioned.map(({ task, start, end, col, totalCols }) => {
             const gap = 6;
             const widthPct = 100 / totalCols;
             const leftPct = widthPct * col;
-            const category = task.categoryId ? categories.find((c) => c.id === task.categoryId) : null;
-            const fallback = fallbackColors[task.id % fallbackColors.length];
+            const category = task.categoryId
+              ? categories.find((c) => c.id === task.categoryId)
+              : null;
+            const fallback =
+              fallbackColors[hashStringToIndex(task.id, fallbackColors.length)];
             const lineColor = category ? category.color : fallback.line;
             const canEdit = !dayClosed && canEditTask(task);
 
@@ -60,7 +87,7 @@ export function TimelineGrid({
               minHeight: `${MIN_BLOCK_H}px`,
               left: `calc(${leftPct}% + ${col === 0 ? 0 : gap / 2}px)`,
               width: `calc(${widthPct}% - ${gap}px)`,
-              '--ev-line': lineColor,
+              "--ev-line": lineColor,
             };
 
             return (
