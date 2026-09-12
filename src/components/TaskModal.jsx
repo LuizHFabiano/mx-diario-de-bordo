@@ -1,76 +1,86 @@
-import { useEffect, useState } from 'react';
-import { Button } from './Button';
-import { ICONS } from '../icons';
-import { timeStrToMinutes } from '../utils/dateUtils';
+import { useEffect, useState } from "react";
+import { Button } from "./Button";
+import { ICONS } from "../icons";
+import { timeStrToMinutes, nowTimeBR } from "../utils/dateUtils";
 
-function formatTimeValue(value) {
-  const digits = value.replace(/\D/g, '').slice(0, 4);
+function formatTimeValue(value, isDeleting) {
+  const digits = value.replace(/\D/g, "").slice(0, 4);
   if (digits.length < 2) return digits;
 
   const hours = Math.min(Number(digits.slice(0, 2)), 23);
-  const hourValue = String(hours).padStart(2, '0');
+  const hourValue = String(hours).padStart(2, "0");
+  if (digits.length === 2) return isDeleting ? hourValue : `${hourValue}:`;
+
   if (digits.length < 4) return `${hourValue}:${digits.slice(2)}`;
 
   const minutes = Math.min(Number(digits.slice(2, 4)), 59);
-  return `${hourValue}:${String(minutes).padStart(2, '0')}`;
+  return `${hourValue}:${String(minutes).padStart(2, "0")}`;
 }
 
 function isValidTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
-export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onSave, onDelete }) {
-  const [title, setTitle] = useState('');
-  const [start, setStart] = useState('09:00');
-  const [end, setEnd] = useState('');
-  const [description, setDescription] = useState('');
-  const [categoryId, setCategoryId] = useState('');
-  const [teamId, setTeamId] = useState('');
-  const [error, setError] = useState('');
+export function TaskModal({
+  task,
+  categories,
+  teams,
+  defaultTeamId,
+  onClose,
+  onSave,
+  onDelete,
+}) {
+  const [title, setTitle] = useState("");
+  const [start, setStart] = useState(() => nowTimeBR());
+  const [end, setEnd] = useState("");
+  const [description, setDescription] = useState("");
+  const [categoryId, setCategoryId] = useState("");
+  const [teamId, setTeamId] = useState("");
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (task) {
       setTitle(task.title);
       setStart(task.start);
-      setEnd(task.end || '');
+      setEnd(task.end || "");
       setDescription(task.description);
-      setCategoryId(task.categoryId || '');
-      setTeamId(task.teamId || '');
+      setCategoryId(task.categoryId || "");
+      setTeamId(task.teamId || "");
     } else {
-      setTitle('');
-      setStart('09:00');
-      setEnd('');
-      setDescription('');
-      setCategoryId('');
-      setTeamId(defaultTeamId || teams[0]?.id || '');
+      setTitle("");
+      setStart(nowTimeBR());
+      setEnd("");
+      setDescription("");
+      setCategoryId("");
+      setTeamId(defaultTeamId || teams[0]?.id || "");
     }
-    setError('');
+    setError("");
   }, [task]);
 
   useEffect(() => {
     function handleKey(e) {
-      if (e.key === 'Escape') onClose();
+      if (e.key === "Escape") onClose();
     }
-    document.addEventListener('keydown', handleKey);
-    return () => document.removeEventListener('keydown', handleKey);
+    document.addEventListener("keydown", handleKey);
+    return () => document.removeEventListener("keydown", handleKey);
   }, [onClose]);
 
   function handleSubmit(e) {
     e.preventDefault();
     if (!isValidTime(start)) {
-      setError('Informe um horário de início válido.');
+      setError("Informe um horário de início válido.");
       return;
     }
     if (end && !isValidTime(end)) {
-      setError('Informe um horário de término válido.');
+      setError("Informe um horário de término válido.");
       return;
     }
     if (end && timeStrToMinutes(end) <= timeStrToMinutes(start)) {
-      setError('O horário de término deve ser depois do início.');
+      setError("O horário de término deve ser depois do início.");
       return;
     }
     onSave({
-      title: title.trim() || 'Sem título',
+      title: title.trim() || "Sem título",
       start,
       end: end || null,
       description: description.trim(),
@@ -81,7 +91,9 @@ export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onS
 
   function handleDelete() {
     if (!task) return;
-    if (window.confirm('Excluir esta atividade? Essa ação não pode ser desfeita.')) {
+    if (
+      window.confirm("Excluir esta atividade? Essa ação não pode ser desfeita.")
+    ) {
       onDelete(task.id);
       onClose();
     }
@@ -95,7 +107,9 @@ export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onS
       }}
     >
       <div className="modal" role="dialog" aria-modal="true">
-        <h2 className="modal__title">{task ? 'Editar atividade' : 'Nova atividade'}</h2>
+        <h2 className="modal__title">
+          {task ? "Editar atividade" : "Nova atividade"}
+        </h2>
         <form onSubmit={handleSubmit}>
           <div className="field">
             <label htmlFor="fieldTitulo">Título da atividade</label>
@@ -119,7 +133,11 @@ export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onS
                 inputMode="numeric"
                 required
                 value={start}
-                onInput={(e) => setStart(formatTimeValue(e.currentTarget.value))}
+                onInput={(e) => {
+                  const isDeleting =
+                    e.nativeEvent.inputType?.startsWith("delete");
+                  setStart(formatTimeValue(e.currentTarget.value, isDeleting));
+                }}
               />
             </div>
             <div className="field">
@@ -131,7 +149,11 @@ export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onS
                 placeholder="00:00"
                 inputMode="numeric"
                 value={end}
-                onInput={(e) => setEnd(formatTimeValue(e.currentTarget.value))}
+                onInput={(e) => {
+                  const isDeleting =
+                    e.nativeEvent.inputType?.startsWith("delete");
+                  setEnd(formatTimeValue(e.currentTarget.value, isDeleting));
+                }}
               />
             </div>
           </div>
@@ -139,14 +161,27 @@ export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onS
           {!task && (
             <div className="field">
               <label htmlFor="fieldEquipe">Equipe</label>
-              <select id="fieldEquipe" required value={teamId} onChange={(e) => setTeamId(e.target.value)}>
-                {teams.map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+              <select
+                id="fieldEquipe"
+                required
+                value={teamId}
+                onChange={(e) => setTeamId(e.target.value)}
+              >
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
+                  </option>
+                ))}
               </select>
             </div>
           )}
           <div className="field">
             <label htmlFor="fieldCategoria">Categoria</label>
-            <select id="fieldCategoria" value={categoryId} onChange={(e) => setCategoryId(e.target.value)}>
+            <select
+              id="fieldCategoria"
+              value={categoryId}
+              onChange={(e) => setCategoryId(e.target.value)}
+            >
               <option value="">Sem categoria</option>
               {categories.map((c) => (
                 <option key={c.id} value={c.id}>
@@ -166,7 +201,12 @@ export function TaskModal({ task, categories, teams, defaultTeamId, onClose, onS
           </div>
           <div className="modal__actions">
             {task && (
-              <Button type="button" variant="danger" icon={ICONS.trash} onClick={handleDelete}>
+              <Button
+                type="button"
+                variant="danger"
+                icon={ICONS.trash}
+                onClick={handleDelete}
+              >
                 Excluir
               </Button>
             )}
