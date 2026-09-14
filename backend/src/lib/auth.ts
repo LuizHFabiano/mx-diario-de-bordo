@@ -26,12 +26,16 @@ export async function createSession(userId: string) {
   return { token, expiresAt };
 }
 
-export function setSessionCookie(response: NextResponse, token: string, expiresAt: Date) {
+export function setSessionCookie(
+  response: NextResponse,
+  token: string,
+  expiresAt: Date,
+) {
   response.cookies.set({
     name: SESSION_COOKIE_NAME,
     value: token,
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
     sameSite: "lax",
     path: "/",
     expires: expiresAt,
@@ -43,7 +47,7 @@ export function clearSessionCookie(response: NextResponse) {
     name: SESSION_COOKIE_NAME,
     value: "",
     httpOnly: true,
-    secure: process.env.NODE_ENV === "production",
+    secure: false,
     sameSite: "lax",
     path: "/",
     maxAge: 0,
