@@ -7,7 +7,6 @@ import { prisma } from "@/lib/prisma";
 
 const updateUserSchema = z.object({
   name: z.string().trim().min(2).max(120).optional(),
-  username: z.string().trim().min(3).max(64).regex(/^[a-zA-Z0-9._-]+$/).optional(),
   role: z.enum([Role.ADMIN, Role.MANAGER, Role.ATTENDANT]).optional(),
   isActive: z.boolean().optional(),
   teamIds: z.array(z.string().uuid()).optional(),
@@ -34,13 +33,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
   if (!existing) return NextResponse.json({ error: "Usuário não encontrado." }, { status: 404 });
 
   const data = parsed.data;
-  const username = data.username?.toLowerCase();
-  if (username && username !== existing.username) {
-    const userWithSameUsername = await prisma.user.findUnique({ where: { username } });
-    if (userWithSameUsername) {
-      return NextResponse.json({ error: "Este nome de usuário já existe." }, { status: 409 });
-    }
-  }
   const role = data.role ?? existing.role;
   const teamIds = [...new Set(data.teamIds ?? existing.memberships.map((membership) => membership.teamId))];
   const managedTeamIds = [
@@ -105,7 +97,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       where: { id },
       data: {
         name: data.name,
-        username,
         role: data.role,
         isActive: data.isActive,
         passwordHash,

@@ -76,14 +76,8 @@ export function TimelineGrid({
             const category = task.categoryId
               ? categories.find((c) => c.id === task.categoryId)
               : null;
-            const availableFallbackColors =
-              Array.isArray(fallbackColors) && fallbackColors.length > 0
-                ? fallbackColors
-                : [{ line: "#D3D3D3" }];
             const fallback =
-              availableFallbackColors[
-                hashStringToIndex(task.id, availableFallbackColors.length)
-              ] ?? { line: "#D3D3D3" };
+              fallbackColors[hashStringToIndex(task.id, fallbackColors.length)];
             const lineColor = category ? category.color : fallback.line;
             const canEdit = !dayClosed && canEditTask(task);
 
