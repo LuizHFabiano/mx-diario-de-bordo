@@ -493,6 +493,8 @@ button{ cursor:pointer; }
 .admin-user-row{ display:flex; align-items:center; justify-content:space-between; gap:16px; border:1px solid var(--color-border); border-radius:var(--radius-sm); padding:12px; }
 .admin-user-row strong,.admin-user-row span,.admin-user-row small{ display:block; }
 .admin-user-row span,.admin-user-row small{ color:var(--color-muted); font-size:12px; margin-top:2px; }
+.admin-user-actions{ display:flex; gap:8px; flex-wrap:wrap; justify-content:flex-end; }
+.admin-edit-modal{ width:min(460px, calc(100vw - 32px)); }
 @media (max-width: 760px){ .admin-grid{ grid-template-columns:1fr; }.admin-user-row{ align-items:flex-start; flex-direction:column; } }
 .config-actions{ display:flex; justify-content:flex-end; gap:10px; margin-top:14px; }
 .clock-readout{ font-family:var(--font-mono); font-size:13px; color:var(--color-ink-soft); margin:2px 0 16px; }

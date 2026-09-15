@@ -16,6 +16,11 @@ export function AdminView() {
   const [teams, setTeams] = useState([]);
   const [users, setUsers] = useState([]);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [editingUser, setEditingUser] = useState(null);
+  const [editName, setEditName] = useState('');
+  const [editUsername, setEditUsername] = useState('');
+  const [editPassword, setEditPassword] = useState('');
+  const [editError, setEditError] = useState('');
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(true);
@@ -81,6 +86,62 @@ export function AdminView() {
     }
   }
 
+  async function deleteUser(user) {
+    const confirmed = window.confirm(
+      `Excluir a conta "${user.name}" (${user.username})? Essa ação não pode ser desfeita.`,
+    );
+    if (!confirmed) return;
+
+    setError('');
+    setSuccess('');
+    try {
+      await apiClient(`/api/admin/users/${user.id}`, { method: 'DELETE' });
+      setSuccess('Conta excluída.');
+      await load();
+    } catch (requestError) {
+      setError(requestError.message);
+    }
+  }
+
+  function startEditing(user) {
+    setEditingUser(user);
+    setEditName(user.name);
+    setEditUsername(user.username);
+    setEditPassword('');
+    setEditError('');
+  }
+
+  function closeEditing() {
+    setEditingUser(null);
+    setEditPassword('');
+    setEditError('');
+  }
+
+  async function saveUserIdentity(event) {
+    event.preventDefault();
+    if (!editingUser) return;
+
+    setEditError('');
+    try {
+      const password = editPassword.trim();
+      const body = { name: editName, username: editUsername };
+      if (password) body.password = password;
+      await apiClient(`/api/admin/users/${editingUser.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify(body),
+      });
+      closeEditing();
+      setSuccess(
+        password
+          ? 'Dados da conta atualizados. A senha foi redefinida e a troca será exigida no próximo login.'
+          : 'Dados da conta atualizados.',
+      );
+      await load();
+    } catch (requestError) {
+      setEditError(requestError.message);
+    }
+  }
+
   return (
     <>
       <Header title="Administração" subtitle="Usuários, equipes e acessos" actions={null} />
@@ -103,10 +164,11 @@ export function AdminView() {
           </section>
           <section className="config-card admin-users-card">
             <h3>Contas cadastradas</h3>
-            {loading ? <p className="hint">Carregando contas...</p> : <div className="admin-user-list">{users.map((user) => <div className="admin-user-row" key={user.id}><div><strong>{user.name}</strong><span>{user.username} · {user.role === 'ADMIN' ? 'Administrador' : user.role === 'MANAGER' ? 'Gestor' : 'Atendente'}</span><small>{user.memberships.map((membership) => membership.team.name).join(', ') || 'Sem equipe'}{user.mustChangePassword ? ' · troca de senha pendente' : ''}</small></div><Button type="button" variant={user.isActive ? 'ghost' : 'primary'} onClick={() => toggleUserStatus(user)}>{user.isActive ? 'Bloquear' : 'Reativar'}</Button></div>)}</div>}
+            {loading ? <p className="hint">Carregando contas...</p> : <div className="admin-user-list">{users.map((user) => <div className="admin-user-row" key={user.id}><div><strong>{user.name}</strong><span>{user.username} · {user.role === 'ADMIN' ? 'Administrador' : user.role === 'MANAGER' ? 'Gestor' : 'Atendente'}</span><small>{user.memberships.map((membership) => membership.team.name).join(', ') || 'Sem equipe'}{user.mustChangePassword ? ' · troca de senha pendente' : ''}</small></div><div className="admin-user-actions"><Button type="button" variant="ghost" onClick={() => startEditing(user)}>Editar</Button><Button type="button" variant={user.isActive ? 'ghost' : 'primary'} onClick={() => toggleUserStatus(user)}>{user.isActive ? 'Bloquear' : 'Reativar'}</Button><Button type="button" variant="danger" onClick={() => deleteUser(user)}>Excluir</Button></div></div>)}</div>}
           </section>
         </div>
       </div>
+      {editingUser && <div className="modal-overlay is-open" role="presentation"><div className="modal admin-edit-modal" role="dialog" aria-modal="true" aria-labelledby="editAccountTitle"><h2 id="editAccountTitle" className="modal__title">Editar conta</h2><form onSubmit={saveUserIdentity}><div className="field"><label htmlFor="editAccountName">Nome de exibição</label><input id="editAccountName" required value={editName} onChange={(event) => setEditName(event.target.value)} /></div><div className="field"><label htmlFor="editAccountUsername">Nome de usuário</label><input id="editAccountUsername" required pattern="[A-Za-z0-9._-]+" value={editUsername} onChange={(event) => setEditUsername(event.target.value)} /></div><div className="field"><label htmlFor="editAccountPassword">Nova senha (opcional)</label><input id="editAccountPassword" type="password" minLength={9} maxLength={256} placeholder="Deixe em branco para manter a senha atual" value={editPassword} onChange={(event) => setEditPassword(event.target.value)} /></div>{editError && <p className="field__error is-visible">{editError}</p>}<div className="modal__actions"><Button type="button" variant="ghost" onClick={closeEditing}>Cancelar</Button><div className="modal__actions-right"><Button type="submit" variant="primary">Salvar</Button></div></div></form></div></div>}
     </>
   );
 }
