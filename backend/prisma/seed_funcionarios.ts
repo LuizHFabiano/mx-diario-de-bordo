@@ -1,11 +1,11 @@
-﻿import { PrismaClient } from '@prisma/client';
+import { PrismaClient } from '../src/generated/prisma/index.js';
 import bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
 
 const turnosData = [
   {
-    nomeEquipe: 'Manhã',
+    nomeEquipe: 'Manh�',
     membros: [
       'Djefferson',
       'Djonattan',
@@ -23,8 +23,8 @@ const turnosData = [
       'Felipe P.',
       'Gabriel',
       'Guilherme',
-      'João Pedro',
-      'Kauê',
+      'Jo�o Pedro',
+      'Kau�',
       'Leonardo M',
       'Yuri',
     ],
@@ -52,7 +52,7 @@ function gerarUsername(nome: string): string {
 }
 
 async function main() {
-  console.log('🚀 Iniciando cadastro de equipes e funcionários...');
+  console.log('?? Iniciando cadastro de equipes e funcion�rios...');
 
   const senhaPadrao = 'Mudar@123';
   const saltRounds = 10;
@@ -68,7 +68,7 @@ async function main() {
       },
     });
 
-    console.log(`\n📌 Equipe: ${team.name}`);
+    console.log(`\n?? Equipe: ${team.name}`);
 
     for (const nome of turno.membros) {
       const username = gerarUsername(nome);
@@ -89,17 +89,17 @@ async function main() {
         },
       });
 
-      console.log(`  ✅ Funcionário: ${user.name} | Usuário: ${user.username} | Equipe: ${team.name}`);
+      console.log(`  ? Funcion�rio: ${user.name} | Usu�rio: ${user.username} | Equipe: ${team.name}`);
     }
   }
 
-  console.log('\n✨ Todos os funcionários foram cadastrados com sucesso!');
-  console.log('🔑 Senha inicial: Mudar@123');
+  console.log('\n? Todos os funcion�rios foram cadastrados com sucesso!');
+  console.log('?? Senha inicial: Mudar@123');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Erro:', e);
+    console.error('? Erro:', e);
     process.exit(1);
   })
   .finally(async () => {

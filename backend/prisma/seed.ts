@@ -1,10 +1,13 @@
-import { PrismaClient } from '../src/generated/prisma/index.js';
+import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client';
 import argon2 from 'argon2';
 
-const prisma = new PrismaClient();
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
 const funcionarios = [
-  // Turno ManhÃ£
+  // Turno Manhã
   { name: 'Djefferson', username: 'djefferson' },
   { name: 'Djonattan', username: 'djonattan' },
   { name: 'Vitor', username: 'vitor' },
@@ -18,8 +21,8 @@ const funcionarios = [
   { name: 'Felipe P.', username: 'felipe.p' },
   { name: 'Gabriel', username: 'gabriel' },
   { name: 'Guilherme', username: 'guilherme' },
-  { name: 'JoÃ£o Pedro', username: 'joao.pedro' },
-  { name: 'KauÃª', username: 'kaue' },
+  { name: 'João Pedro', username: 'joao.pedro' },
+  { name: 'Kauê', username: 'kaue' },
   { name: 'Leonardo M.', username: 'leonardo.m' },
   { name: 'Yuri', username: 'yuri' },
 
@@ -34,36 +37,43 @@ const funcionarios = [
 
 async function main() {
   const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || '@Luiz22052212345';
-  const hashedPassword = await argon2.hash(adminPassword);
+  const adminHash = await argon2.hash(adminPassword);
 
-  console.log('ðŸ”„ Cadastrando usuÃ¡rio Administrador...');
+  // Senha padrão dos funcionários: 12345678
+  const funcionarioPassword = '12345678';
+  const funcionarioHash = await argon2.hash(funcionarioPassword);
+
+  console.log('?? Cadastrando/Atualizando Administrador...');
   await prisma.user.upsert({
     where: { username: process.env.INITIAL_ADMIN_USERNAME || 'admin' },
-    update: {},
+    update: { passwordHash: adminHash },
     create: {
       name: process.env.INITIAL_ADMIN_NAME || 'Administrador',
       username: process.env.INITIAL_ADMIN_USERNAME || 'admin',
-      password: hashedPassword,
+      passwordHash: adminHash,
       role: 'ADMIN',
     },
   });
 
-  console.log('ðŸ”„ Cadastrando os 21 funcionÃ¡rios...');
+  console.log('?? Cadastrando/Atualizando os 21 funcionários com a senha 12345678...');
   for (const func of funcionarios) {
     await prisma.user.upsert({
       where: { username: func.username },
-      update: { name: func.name },
+      update: { 
+        name: func.name,
+        passwordHash: funcionarioHash,
+      },
       create: {
         name: func.name,
         username: func.username,
-        password: hashedPassword,
-        role: 'ATENDENTE',
+        passwordHash: funcionarioHash,
+        role: 'ATTENDANT',
       },
     });
-    console.log(`âœ“ Cadastrado: ${func.name} (${func.username})`);
+    console.log(`? Atualizado: ${func.name} (${func.username})`);
   }
 
-  console.log('\nâœ… Todos os usuÃ¡rios foram cadastrados com sucesso!');
+  console.log('\n? Todos os funcionários agora têm a senha: 12345678');
 }
 
 main()

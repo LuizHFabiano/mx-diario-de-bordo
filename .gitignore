@@ -8,3 +8,4 @@ dist
 projeto.zip
 
 .vercel
+.env*
