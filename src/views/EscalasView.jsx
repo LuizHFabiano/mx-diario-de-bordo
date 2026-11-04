@@ -149,58 +149,64 @@ export function EscalasView({ theme = 'light' }) {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     let y = 16;
 
-    // Cabeçalho
+    // Cabeçalho Principal
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setTextColor(30, 41, 59);
     doc.text('MX Soluções - Escala Semanal de Funcionários', 14, y);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setTextColor(100, 116, 139);
     doc.text(`Período da Escala: ${periodoTexto}`, 14, y + 6);
-    y += 16;
+    y += 18;
+
+    const colWidth = 31;
+    const rowHeight = 8;
 
     TURNOS_FUNCIONARIOS.forEach((turno) => {
-      if (y > 175) {
+      if (y > 160) {
         doc.addPage();
         y = 16;
       }
 
+      // 1. Barra de Título do Turno
       doc.setFillColor(241, 245, 249);
-      doc.rect(14, y, 269, 7, 'F');
+      doc.rect(14, y, 269, 7.5, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(11);
+      doc.setFontSize(10);
       doc.setTextColor(15, 23, 42);
       doc.text(`TURNO: ${turno.nome.toUpperCase()} (${turno.funcionarios.length} Colaboradores)`, 16, y + 5);
-      y += 9;
+      y += 11;
 
+      // 2. Cabeçalho das Colunas
       doc.setFillColor(226, 232, 240);
-      doc.rect(14, y, 269, 7, 'F');
+      doc.rect(14, y, 269, 7.5, 'F');
       doc.setFontSize(9);
       doc.setTextColor(30, 41, 59);
       doc.text('Funcionário', 16, y + 5);
 
-      const colWidth = 31; // Ajustado de 35 para 31 para caber as 7 colunas perfeitamente
       diasCalculados.forEach((dia, i) => {
         const xPos = 52 + i * colWidth;
         doc.text(`${dia.label} (${dia.dataFormatada})`, xPos, y + 5);
       });
-      y += 8;
+      // Pula 14mm para eliminar qualquer sobreposição com o primeiro funcionário
+      y += 14;
 
-      doc.setFont('helvetica', 'normal');
+      // 3. Linhas dos Funcionários
       turno.funcionarios.forEach((nome, idx) => {
-        if (y > 185) {
+        if (y > 190) {
           doc.addPage();
           y = 16;
         }
 
         if (idx % 2 === 1) {
           doc.setFillColor(248, 250, 252);
-          doc.rect(14, y - 4, 269, 6.5, 'F');
+          doc.rect(14, y - 5, 269, rowHeight, 'F');
         }
 
         doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9);
         doc.setTextColor(30, 41, 59);
         doc.text(nome, 16, y);
 
@@ -227,15 +233,15 @@ export function EscalasView({ theme = 'light' }) {
           }
         });
 
-        y += 6.5;
+        y += rowHeight;
       });
 
-      y += 6;
+      y += 8;
     });
 
-    const nomeArquivo = `escala_mx_${chaveSemana}.pdf`;
+    const nomeArquivo = `escala_funcionarios_${chaveSemana}.pdf`;
     doc.save(nomeArquivo);
-  };
+  };;
 
   const turnosFiltrados = TURNOS_FUNCIONARIOS.filter((t) =>
     turnoFiltro === 'TODOS' ? true : t.nome === turnoFiltro
