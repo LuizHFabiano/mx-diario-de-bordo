@@ -42,13 +42,13 @@ const TURNOS_FUNCIONARIOS = [
 
 // 1. ADICIONADO O DOMINGO AQUI
 const DIAS_NOMES = [
+  { id: 'dom', label: 'Domingo', dayIdx: 0 },
   { id: 'seg', label: 'Segunda', dayIdx: 1 },
   { id: 'ter', label: 'Terça', dayIdx: 2 },
   { id: 'qua', label: 'Quarta', dayIdx: 3 },
   { id: 'qui', label: 'Quinta', dayIdx: 4 },
   { id: 'sex', label: 'Sexta', dayIdx: 5 },
   { id: 'sab', label: 'Sábado', dayIdx: 6 },
-  { id: 'dom', label: 'Domingo', dayIdx: 0 },
 ];
 
 const STATUS_OPCOES = [
@@ -103,9 +103,12 @@ export function EscalasView({ theme = 'light' }) {
   }, [dataSegunda]);
 
   const diasCalculados = useMemo(() => {
+    const dataInicio = new Date(dataSegunda);
+    dataInicio.setDate(dataSegunda.getDate() - 1); // Domingo é 1 dia antes da segunda-feira
+
     return DIAS_NOMES.map((d, idx) => {
-      const dataDia = new Date(dataSegunda);
-      dataDia.setDate(dataSegunda.getDate() + idx);
+      const dataDia = new Date(dataInicio);
+      dataDia.setDate(dataInicio.getDate() + idx);
       const diaNum = String(dataDia.getDate()).padStart(2, '0');
       const mesNum = String(dataDia.getMonth() + 1).padStart(2, '0');
       return {
@@ -117,13 +120,17 @@ export function EscalasView({ theme = 'light' }) {
 
   // 2. AJUSTADO PARA INCLUIR O DOMINGO NO TEXTO (+6 dias)
   const periodoTexto = useMemo(() => {
-    const dataDomingo = new Date(dataSegunda);
-    dataDomingo.setDate(dataSegunda.getDate() + 6);
-    const d1 = String(dataSegunda.getDate()).padStart(2, '0');
-    const m1 = String(dataSegunda.getMonth() + 1).padStart(2, '0');
-    const d2 = String(dataDomingo.getDate()).padStart(2, '0');
-    const m2 = String(dataDomingo.getMonth() + 1).padStart(2, '0');
-    const y = dataDomingo.getFullYear();
+    const dataDom = new Date(dataSegunda);
+    dataDom.setDate(dataSegunda.getDate() - 1);
+
+    const dataSab = new Date(dataDom);
+    dataSab.setDate(dataDom.getDate() + 6);
+
+    const d1 = String(dataDom.getDate()).padStart(2, '0');
+    const m1 = String(dataDom.getMonth() + 1).padStart(2, '0');
+    const d2 = String(dataSab.getDate()).padStart(2, '0');
+    const m2 = String(dataSab.getMonth() + 1).padStart(2, '0');
+    const y = dataSab.getFullYear();
     return `${d1}/${m1} a ${d2}/${m2}/${y}`;
   }, [dataSegunda]);
 
