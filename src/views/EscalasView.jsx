@@ -40,15 +40,14 @@ const TURNOS_FUNCIONARIOS = [
   },
 ];
 
-// 1. ADICIONADO O DOMINGO AQUI
 const DIAS_NOMES = [
-  { id: 'dom', label: 'Domingo', dayIdx: 0 },
   { id: 'seg', label: 'Segunda', dayIdx: 1 },
   { id: 'ter', label: 'Terça', dayIdx: 2 },
   { id: 'qua', label: 'Quarta', dayIdx: 3 },
   { id: 'qui', label: 'Quinta', dayIdx: 4 },
   { id: 'sex', label: 'Sexta', dayIdx: 5 },
   { id: 'sab', label: 'Sábado', dayIdx: 6 },
+  { id: 'dom', label: 'Domingo', dayIdx: 0 },
 ];
 
 const STATUS_OPCOES = [
@@ -79,6 +78,15 @@ export function EscalasView({ theme = 'light' }) {
   const [turnoFiltro, setTurnoFiltro] = useState('TODOS');
   const [busca, setBusca] = useState('');
 
+  // Modal de exportação individual
+  const [modalPdfAberto, setModalPdfAberto] = useState(false);
+  const [funcSelecionado, setFuncSelecionado] = useState('Allan');
+  const [mesAnoSelecionado, setMesAnoSelecionado] = useState('2026-10');
+
+  const todosFuncionarios = useMemo(() => {
+    return TURNOS_FUNCIONARIOS.flatMap((t) => t.funcionarios);
+  }, []);
+
   const [escalas, setEscalas] = useState(() => {
     const salvo = localStorage.getItem('mx_escalas_dinamicas_v1');
     return salvo ? JSON.parse(salvo) : DADOS_PRESET;
@@ -88,7 +96,7 @@ export function EscalasView({ theme = 'light' }) {
     localStorage.setItem('mx_escalas_dinamicas_v1', JSON.stringify(escalas));
   }, [escalas]);
 
-  // Segunda-feira ativa (base: 19/10/2026)
+  // Segunda-feira ativa
   const dataSegunda = useMemo(() => {
     const base = new Date(2026, 9, 19);
     base.setDate(base.getDate() + semanaOffset * 7);
@@ -103,12 +111,9 @@ export function EscalasView({ theme = 'light' }) {
   }, [dataSegunda]);
 
   const diasCalculados = useMemo(() => {
-    const dataInicio = new Date(dataSegunda);
-    dataInicio.setDate(dataSegunda.getDate() - 1); // Domingo é 1 dia antes da segunda-feira
-
     return DIAS_NOMES.map((d, idx) => {
-      const dataDia = new Date(dataInicio);
-      dataDia.setDate(dataInicio.getDate() + idx);
+      const dataDia = new Date(dataSegunda);
+      dataDia.setDate(dataSegunda.getDate() + idx);
       const diaNum = String(dataDia.getDate()).padStart(2, '0');
       const mesNum = String(dataDia.getMonth() + 1).padStart(2, '0');
       return {
@@ -118,19 +123,14 @@ export function EscalasView({ theme = 'light' }) {
     });
   }, [dataSegunda]);
 
-  // 2. AJUSTADO PARA INCLUIR O DOMINGO NO TEXTO (+6 dias)
   const periodoTexto = useMemo(() => {
-    const dataDom = new Date(dataSegunda);
-    dataDom.setDate(dataSegunda.getDate() - 1);
-
-    const dataSab = new Date(dataDom);
-    dataSab.setDate(dataDom.getDate() + 6);
-
-    const d1 = String(dataDom.getDate()).padStart(2, '0');
-    const m1 = String(dataDom.getMonth() + 1).padStart(2, '0');
-    const d2 = String(dataSab.getDate()).padStart(2, '0');
-    const m2 = String(dataSab.getMonth() + 1).padStart(2, '0');
-    const y = dataSab.getFullYear();
+    const dataDomingo = new Date(dataSegunda);
+    dataDomingo.setDate(dataSegunda.getDate() + 6);
+    const d1 = String(dataSegunda.getDate()).padStart(2, '0');
+    const m1 = String(dataSegunda.getMonth() + 1).padStart(2, '0');
+    const d2 = String(dataDomingo.getDate()).padStart(2, '0');
+    const m2 = String(dataDomingo.getMonth() + 1).padStart(2, '0');
+    const y = dataDomingo.getFullYear();
     return `${d1}/${m1} a ${d2}/${m2}/${y}`;
   }, [dataSegunda]);
 
@@ -151,69 +151,62 @@ export function EscalasView({ theme = 'light' }) {
     }));
   };
 
-  // 3. AJUSTADO LARGURA DO PDF PARA 7 COLUNAS (DOMINGO)
+  // 1. PDF Semanal Geral
   const exportarParaPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     let y = 16;
 
-    // Cabeçalho Principal
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(15);
+    doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
     doc.text('MX Soluções - Escala Semanal de Funcionários', 14, y);
 
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(10);
+    doc.setFontSize(11);
     doc.setTextColor(100, 116, 139);
     doc.text(`Período da Escala: ${periodoTexto}`, 14, y + 6);
-    y += 18;
-
-    const colWidth = 31;
-    const rowHeight = 8;
+    y += 16;
 
     TURNOS_FUNCIONARIOS.forEach((turno) => {
-      if (y > 160) {
+      if (y > 175) {
         doc.addPage();
         y = 16;
       }
 
-      // 1. Barra de Título do Turno
       doc.setFillColor(241, 245, 249);
-      doc.rect(14, y, 269, 7.5, 'F');
+      doc.rect(14, y, 269, 7, 'F');
       doc.setFont('helvetica', 'bold');
-      doc.setFontSize(10);
+      doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
       doc.text(`TURNO: ${turno.nome.toUpperCase()} (${turno.funcionarios.length} Colaboradores)`, 16, y + 5);
-      y += 11;
+      y += 9;
 
-      // 2. Cabeçalho das Colunas
       doc.setFillColor(226, 232, 240);
-      doc.rect(14, y, 269, 7.5, 'F');
+      doc.rect(14, y, 269, 7, 'F');
       doc.setFontSize(9);
       doc.setTextColor(30, 41, 59);
       doc.text('Funcionário', 16, y + 5);
 
+      const colWidth = 31;
       diasCalculados.forEach((dia, i) => {
         const xPos = 52 + i * colWidth;
         doc.text(`${dia.label} (${dia.dataFormatada})`, xPos, y + 5);
       });
-      // Pula 14mm para eliminar qualquer sobreposição com o primeiro funcionário
-      y += 14;
+      y += 8;
 
-      // 3. Linhas dos Funcionários
+      doc.setFont('helvetica', 'normal');
       turno.funcionarios.forEach((nome, idx) => {
-        if (y > 190) {
+        if (y > 185) {
           doc.addPage();
           y = 16;
         }
 
         if (idx % 2 === 1) {
           doc.setFillColor(248, 250, 252);
-          doc.rect(14, y - 5, 269, rowHeight, 'F');
+          doc.rect(14, y - 4, 269, 6.5, 'F');
         }
 
         doc.setFont('helvetica', 'bold');
-        doc.setFontSize(9);
         doc.setTextColor(30, 41, 59);
         doc.text(nome, 16, y);
 
@@ -240,15 +233,133 @@ export function EscalasView({ theme = 'light' }) {
           }
         });
 
-        y += rowHeight;
+        y += 6.5;
       });
 
-      y += 8;
+      y += 6;
     });
 
-    const nomeArquivo = `escala_funcionarios_${chaveSemana}.pdf`;
+    const nomeArquivo = `escala_mx_${chaveSemana}.pdf`;
     doc.save(nomeArquivo);
-  };;
+  };
+
+  // 2. NOVA FUNÇÃO: PDF Individual Mensal por Funcionário
+  const exportarPDFMensalIndividual = () => {
+    const [anoStr, mesStr] = mesAnoSelecionado.split('-');
+    const ano = parseInt(anoStr, 10);
+    const mes = parseInt(mesStr, 10) - 1; // 0-based
+
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    let y = 16;
+
+    const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
+    const nomeMesExtenso = new Date(ano, mes, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
+
+    // Descobrir Turno do Colaborador
+    const turnoObj = TURNOS_FUNCIONARIOS.find((t) => t.funcionarios.includes(funcSelecionado));
+    const turnoNome = turnoObj ? turnoObj.nome : 'N/A';
+
+    // Cabeçalho do documento
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(30, 41, 59);
+    doc.text('MX Soluções - Espelho de Escala Mensal', 14, y);
+
+    doc.setFontSize(11);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Colaborador: ${funcSelecionado} | Turno: ${turnoNome}`, 14, y + 6);
+    doc.text(`Mês de Referência: ${nomeMesExtenso.toUpperCase()}`, 14, y + 12);
+
+    y += 22;
+
+    // Cabeçalho da tabela
+    doc.setFillColor(226, 232, 240);
+    doc.rect(14, y, 182, 7, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(30, 41, 59);
+    doc.text('Data', 18, y + 5);
+    doc.text('Dia da Semana', 60, y + 5);
+    doc.text('Status Registado', 130, y + 5);
+
+    y += 8;
+
+    const resumo = { TRABALHO: 0, FOLGA: 0, ATESTADO: 0, DAY_OFF: 0, FALTA: 0 };
+    const diasSemanaNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
+
+    doc.setFont('helvetica', 'normal');
+
+    for (let dia = 1; dia <= totalDiasNoMes; dia++) {
+      if (y > 265) {
+        doc.addPage();
+        y = 16;
+      }
+
+      const dataAtual = new Date(ano, mes, dia);
+      const diaSemanaIdx = dataAtual.getDay(); // 0 = dom, 1 = seg...
+      const dataFmt = `${String(dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}/${ano}`;
+      const diaSemanaNome = diasSemanaNomes[diaSemanaIdx];
+
+      // Mapeamento do id da escala (seg, ter, qua...)
+      const mapIds = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
+      const diaIdKey = mapIds[diaSemanaIdx];
+
+      // Status padrão (simulado ou do estado atual)
+      const statusAtual = getStatus(funcSelecionado, diaIdKey);
+      resumo[statusAtual] = (resumo[statusAtual] || 0) + 1;
+
+      if (dia % 2 === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(14, y - 4, 182, 6, 'F');
+      }
+
+      doc.setTextColor(30, 41, 59);
+      doc.text(dataFmt, 18, y);
+      doc.text(diaSemanaNome, 60, y);
+
+      const confStatus = STATUS_OPCOES.find((s) => s.value === statusAtual) || STATUS_OPCOES[0];
+      doc.setFont('helvetica', 'bold');
+      if (statusAtual === 'TRABALHO') doc.setTextColor(22, 163, 74);
+      else if (statusAtual === 'FOLGA') doc.setTextColor(37, 99, 235);
+      else if (statusAtual === 'ATESTADO') doc.setTextColor(202, 138, 4);
+      else if (statusAtual === 'DAY_OFF') doc.setTextColor(147, 51, 234);
+      else if (statusAtual === 'FALTA') doc.setTextColor(220, 38, 38);
+
+      doc.text(confStatus.label, 130, y);
+      doc.setFont('helvetica', 'normal');
+
+      y += 6;
+    }
+
+    // Tabela de Resumo no final
+    y += 6;
+    if (y > 240) {
+      doc.addPage();
+      y = 16;
+    }
+
+    doc.setFillColor(241, 245, 249);
+    doc.rect(14, y, 182, 28, 'F');
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.setTextColor(15, 23, 42);
+    doc.text('RESUMO DO MÊS', 18, y + 6);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(30, 41, 59);
+
+    doc.text(`• Dias de Trabalho: ${resumo.TRABALHO}`, 18, y + 13);
+    doc.text(`• Folgas: ${resumo.FOLGA}`, 18, y + 19);
+    doc.text(`• Day Off: ${resumo.DAY_OFF}`, 90, y + 13);
+    doc.text(`• Atestados: ${resumo.ATESTADO}`, 90, y + 19);
+    doc.text(`• Faltas: ${resumo.FALTA}`, 150, y + 13);
+
+    const nomeFich = `escala_mensal_${funcSelecionado.toLowerCase().replace(/\s+/g, '_')}_${mesAnoSelecionado}.pdf`;
+    doc.save(nomeFich);
+    setModalPdfAberto(false);
+  };
 
   const turnosFiltrados = TURNOS_FUNCIONARIOS.filter((t) =>
     turnoFiltro === 'TODOS' ? true : t.nome === turnoFiltro
@@ -290,6 +401,19 @@ export function EscalasView({ theme = 'light' }) {
       borderRadius: '6px',
       border: 'none',
       background: '#0284c7',
+      color: '#ffffff',
+      cursor: 'pointer',
+      fontWeight: 'bold',
+      fontSize: '13px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+    },
+    buttonPdfIndiv: {
+      padding: '9px 16px',
+      borderRadius: '6px',
+      border: 'none',
+      background: '#0d9488',
       color: '#ffffff',
       cursor: 'pointer',
       fontWeight: 'bold',
@@ -387,16 +511,93 @@ export function EscalasView({ theme = 'light' }) {
             Próxima Semana <span>→</span>
           </button>
 
+          {/* Exportar Geral Semanal */}
           <button
             onClick={exportarParaPDF}
             style={styles.buttonPdf}
             title="Exportar a escala da semana exibida em PDF"
           >
-            📄 Exportar PDF
+            📄 PDF Semanal
+          </button>
+
+          {/* Novo Botão: Exportar Mensal Individual */}
+          <button
+            onClick={() => setModalPdfAberto(true)}
+            style={styles.buttonPdfIndiv}
+            title="Exportar relatório mensal individual por colaborador"
+          >
+            👤 PDF Individual
           </button>
         </div>
       </header>
 
+      {/* MODAL MENSAL INDIVIDUAL */}
+      {modalPdfAberto && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: isDark ? '#1e293b' : '#ffffff',
+            padding: '24px',
+            borderRadius: '12px',
+            width: '400px',
+            maxWidth: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            color: isDark ? '#ffffff' : '#000000'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>Gerar Relatório Mensal</h3>
+
+            <div style={{ marginBottom: '14px' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', fontWeight: 'bold' }}>Colaborador:</label>
+              <select
+                value={funcSelecionado}
+                onChange={(e) => setFuncSelecionado(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: isDark ? '#0f172a' : '#fff', color: isDark ? '#fff' : '#000' }}
+              >
+                {todosFuncionarios.map((nome) => (
+                  <option key={nome} value={nome}>{nome}</option>
+                ))}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', fontWeight: 'bold' }}>Mês/Ano:</label>
+              <input
+                type="month"
+                value={mesAnoSelecionado}
+                onChange={(e) => setMesAnoSelecionado(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: isDark ? '#0f172a' : '#fff', color: isDark ? '#fff' : '#000' }}
+              />
+            </div>
+
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setModalPdfAberto(false)}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #94a3b8', background: 'transparent', color: isDark ? '#fff' : '#000', cursor: 'pointer' }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={exportarPDFMensalIndividual}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: 'none', background: '#0d9488', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
+              >
+                Gerar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Barra de Filtros */}
       <div style={styles.filterBar}>
         <input
           type="text"
@@ -431,6 +632,7 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       </div>
 
+      {/* Tabelas de Turno */}
       {turnosFiltrados.map((turno) => {
         const funcionariosFiltrados = turno.funcionarios.filter((nome) =>
           nome.toLowerCase().includes(busca.toLowerCase())
