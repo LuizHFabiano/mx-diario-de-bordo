@@ -284,7 +284,8 @@ export function EscalasView({ theme = 'light' }) {
     doc.text('Dia da Semana', 60, y + 5);
     doc.text('Status Registado', 130, y + 5);
 
-    y += 8;
+    // Espaçamento vertical ajustado para não sobrepor o primeiro dia
+    y += 14;
 
     const resumo = { TRABALHO: 0, FOLGA: 0, ATESTADO: 0, DAY_OFF: 0, FALTA: 0 };
     const diasSemanaNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
