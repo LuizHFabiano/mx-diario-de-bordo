@@ -86,10 +86,14 @@ export function EscalasView({ theme = 'light' }) {
   }, [escalas]);
 
   // Segunda-feira ativa
+  // Segunda-feira calculada dinamicamente para a semana atual de hoje
   const dataSegunda = useMemo(() => {
-    const base = new Date(2026, 9, 19);
-    base.setDate(base.getDate() + semanaOffset * 7);
-    return base;
+    const hoje = new Date();
+    const diaSemana = hoje.getDay(); // 0 = dom, 1 = seg...
+    const diffParaSegunda = diaSemana === 0 ? -6 : 1 - diaSemana;
+    const segundaAtual = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate() + diffParaSegunda);
+    segundaAtual.setDate(segundaAtual.getDate() + semanaOffset * 7);
+    return segundaAtual;
   }, [semanaOffset]);
 
   const chaveSemana = useMemo(() => {
