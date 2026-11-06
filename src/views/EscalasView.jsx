@@ -88,12 +88,12 @@ export function EscalasView({ theme = 'light' }) {
   }, []);
 
   const [escalas, setEscalas] = useState(() => {
-    const salvo = localStorage.getItem('mx_escalas_dinamicas_v1');
+    const salvo = localStorage.getItem('mx_escalas_dinamicas_v3');
     return salvo ? JSON.parse(salvo) : DADOS_PRESET;
   });
 
   useEffect(() => {
-    localStorage.setItem('mx_escalas_dinamicas_v1', JSON.stringify(escalas));
+    localStorage.setItem('mx_escalas_dinamicas_v3', JSON.stringify(escalas));
   }, [escalas]);
 
   // Segunda-feira ativa
