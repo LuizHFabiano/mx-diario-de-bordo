@@ -192,7 +192,8 @@ export function EscalasView({ theme = 'light' }) {
         const xPos = 52 + i * colWidth;
         doc.text(`${dia.label} (${dia.dataFormatada})`, xPos, y + 5);
       });
-      y += 8;
+      // Pula 14mm para eliminar sobreposicao com o primeiro funcionario
+      y += 14;
 
       doc.setFont('helvetica', 'normal');
       turno.funcionarios.forEach((nome, idx) => {
