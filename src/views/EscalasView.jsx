@@ -58,18 +58,7 @@ const STATUS_OPCOES = [
   { value: 'FALTA', label: 'Falta', color: '#dc2626', bgLight: '#fee2e2', bgDark: '#7f1d1d' },
 ];
 
-const DADOS_PRESET = {
-  'semana_2026-10-19': {
-    'Maria G.': { sex: 'ATESTADO', sab: 'FALTA', dom: 'FOLGA' },
-    'Paulo H.': { sab: 'FOLGA', dom: 'FOLGA' },
-    'Felipe P.': { sab: 'FOLGA', dom: 'FOLGA' },
-    'Kauê': { sab: 'DAY_OFF', dom: 'FOLGA' },
-    'Enerdan': { sab: 'FOLGA', dom: 'FOLGA' },
-  },
-  'semana_2026-10-26': {
-    'Gabriel': { sex: 'FOLGA', sab: 'DAY_OFF', dom: 'FOLGA' },
-  },
-};
+const DADOS_PRESET = {};
 
 export function EscalasView({ theme = 'light' }) {
   const isDark = theme === 'dark';
@@ -88,12 +77,12 @@ export function EscalasView({ theme = 'light' }) {
   }, []);
 
   const [escalas, setEscalas] = useState(() => {
-    const salvo = localStorage.getItem('mx_escalas_dinamicas_v3');
+    const salvo = localStorage.getItem('mx_escalas_dinamicas_v4');
     return salvo ? JSON.parse(salvo) : DADOS_PRESET;
   });
 
   useEffect(() => {
-    localStorage.setItem('mx_escalas_dinamicas_v3', JSON.stringify(escalas));
+    localStorage.setItem('mx_escalas_dinamicas_v4', JSON.stringify(escalas));
   }, [escalas]);
 
   // Segunda-feira ativa
@@ -135,7 +124,10 @@ export function EscalasView({ theme = 'light' }) {
   }, [dataSegunda]);
 
   const getStatus = (nome, diaId) => {
-    return escalas[chaveSemana]?.[nome]?.[diaId] || 'TRABALHO';
+    const salvo = escalas[chaveSemana]?.[nome]?.[diaId];
+    if (salvo) return salvo;
+    if (diaId === 'dom') return 'FOLGA';
+    return 'TRABALHO';
   };
 
   const alterarStatus = (nome, diaId, novoStatus) => {
