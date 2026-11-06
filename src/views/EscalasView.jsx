@@ -251,7 +251,7 @@ export function EscalasView({ theme = 'light' }) {
     const mes = parseInt(mesStr, 10) - 1; // 0-based
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    let y = 16;
+    let y = 14;
 
     const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
     const nomeMesExtenso = new Date(ano, mes, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
@@ -260,60 +260,53 @@ export function EscalasView({ theme = 'light' }) {
     const turnoObj = TURNOS_FUNCIONARIOS.find((t) => t.funcionarios.includes(funcSelecionado));
     const turnoNome = turnoObj ? turnoObj.nome : 'N/A';
 
-    // Cabeçalho do documento
+    // Cabeçalho do documento compacto
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(16);
+    doc.setFontSize(15);
     doc.setTextColor(30, 41, 59);
     doc.text('MX Soluções - Espelho de Escala Mensal', 14, y);
 
-    doc.setFontSize(11);
+    doc.setFontSize(10);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(71, 85, 105);
-    doc.text(`Colaborador: ${funcSelecionado} | Turno: ${turnoNome}`, 14, y + 6);
-    doc.text(`Mês de Referência: ${nomeMesExtenso.toUpperCase()}`, 14, y + 12);
+    doc.text(`Colaborador: ${funcSelecionado} | Turno: ${turnoNome}`, 14, y + 5);
+    doc.text(`Mês de Referência: ${nomeMesExtenso.toUpperCase()}`, 14, y + 10);
 
-    y += 22;
+    y += 16;
 
     // Cabeçalho da tabela
     doc.setFillColor(226, 232, 240);
-    doc.rect(14, y, 182, 7, 'F');
+    doc.rect(14, y, 182, 6, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setTextColor(30, 41, 59);
-    doc.text('Data', 18, y + 5);
-    doc.text('Dia da Semana', 60, y + 5);
-    doc.text('Status Registado', 130, y + 5);
+    doc.text('Data', 18, y + 4.2);
+    doc.text('Dia da Semana', 60, y + 4.2);
+    doc.text('Status Registrado', 130, y + 4.2);
 
-    // Espaçamento vertical ajustado para não sobrepor o primeiro dia
-    y += 14;
+    y += 10;
 
     const resumo = { TRABALHO: 0, FOLGA: 0, ATESTADO: 0, DAY_OFF: 0, FALTA: 0 };
     const diasSemanaNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
 
+    doc.setFontSize(8);
     doc.setFont('helvetica', 'normal');
 
     for (let dia = 1; dia <= totalDiasNoMes; dia++) {
-      if (y > 265) {
-        doc.addPage();
-        y = 16;
-      }
-
       const dataAtual = new Date(ano, mes, dia);
-      const diaSemanaIdx = dataAtual.getDay(); // 0 = dom, 1 = seg...
+      const diaSemanaIdx = dataAtual.getDay();
       const dataFmt = `${String(dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}/${ano}`;
       const diaSemanaNome = diasSemanaNomes[diaSemanaIdx];
 
-      // Mapeamento do id da escala (seg, ter, qua...)
       const mapIds = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
       const diaIdKey = mapIds[diaSemanaIdx];
 
-      // Status padrão (simulado ou do estado atual)
       const statusAtual = getStatus(funcSelecionado, diaIdKey);
       resumo[statusAtual] = (resumo[statusAtual] || 0) + 1;
 
       if (dia % 2 === 0) {
         doc.setFillColor(248, 250, 252);
-        doc.rect(14, y - 4, 182, 6, 'F');
+        doc.rect(14, y - 3.6, 182, 5.3, 'F');
       }
 
       doc.setTextColor(30, 41, 59);
@@ -330,33 +323,27 @@ export function EscalasView({ theme = 'light' }) {
 
       doc.text(confStatus.label, 130, y);
       doc.setFont('helvetica', 'normal');
-
-      y += 6;
+      y += 5.3;
     }
 
-    // Tabela de Resumo no final
-    y += 6;
-    if (y > 240) {
-      doc.addPage();
-      y = 16;
-    }
-
+    // Tabela de Resumo no final (na mesma folha A4)
+    y += 3;
     doc.setFillColor(241, 245, 249);
-    doc.rect(14, y, 182, 28, 'F');
+    doc.rect(14, y, 182, 22, 'F');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(10);
+    doc.setFontSize(9.5);
     doc.setTextColor(15, 23, 42);
-    doc.text('RESUMO DO MÊS', 18, y + 6);
+    doc.text('RESUMO DO MÊS', 18, y + 5.5);
 
-    doc.setFontSize(9);
+    doc.setFontSize(8.5);
     doc.setFont('helvetica', 'normal');
     doc.setTextColor(30, 41, 59);
 
-    doc.text(`• Dias de Trabalho: ${resumo.TRABALHO}`, 18, y + 13);
-    doc.text(`• Folgas: ${resumo.FOLGA}`, 18, y + 19);
-    doc.text(`• Day Off: ${resumo.DAY_OFF}`, 90, y + 13);
-    doc.text(`• Atestados: ${resumo.ATESTADO}`, 90, y + 19);
-    doc.text(`• Faltas: ${resumo.FALTA}`, 150, y + 13);
+    doc.text(`• Dias de Trabalho: ${resumo.TRABALHO}`, 18, y + 12);
+    doc.text(`• Folgas: ${resumo.FOLGA}`, 18, y + 17);
+    doc.text(`• Day Off: ${resumo.DAY_OFF}`, 85, y + 12);
+    doc.text(`• Atestados: ${resumo.ATESTADO}`, 85, y + 17);
+    doc.text(`• Faltas: ${resumo.FALTA}`, 145, y + 12);
 
     const nomeFich = `escala_mensal_${funcSelecionado.toLowerCase().replace(/\s+/g, '_')}_${mesAnoSelecionado}.pdf`;
     doc.save(nomeFich);
