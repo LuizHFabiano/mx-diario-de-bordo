@@ -194,11 +194,11 @@ model AuditLog {
 }
 
 model WorkScale {
-  id        String         @id @default(uuid()) @db.Uuid
-  userId    String         @map("user_id") @db.Uuid
-  teamId    String?        @map("team_id") @db.Uuid
-  shift     ShiftType      @default(MORNING)
-  weekStart DateTime       @map("week_start") @db.Date
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  teamId    String?   @map("team_id") @db.Uuid
+  shift     ShiftType @default(MORNING)
+  weekStart DateTime  @map("week_start") @db.Date
 
   monday    ScheduleStatus @default(WORK)
   tuesday   ScheduleStatus @default(WORK)
@@ -208,10 +208,19 @@ model WorkScale {
   saturday  ScheduleStatus @default(WORK)
   sunday    ScheduleStatus @default(OFF)
 
-  createdAt DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+  // NOVOS CAMPOS PARA OBSERVAÇÃO DE CADADIA (Justificativas de folga, atestado, etc)
+  mondayNotes    String? @map("monday_notes") @db.Text
+  tuesdayNotes   String? @map("tuesday_notes") @db.Text
+  wednesdayNotes String? @map("wednesday_notes") @db.Text
+  thursdayNotes  String? @map("thursday_notes") @db.Text
+  fridayNotes    String? @map("friday_notes") @db.Text
+  saturdayNotes  String? @map("saturday_notes") @db.Text
+  sundayNotes    String? @map("sunday_notes") @db.Text
 
-  user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, weekStart])
   @@map("work_scales")

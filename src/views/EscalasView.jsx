@@ -83,18 +83,39 @@ export function EscalasView({ theme = 'light' }) {
   const [funcSelecionado, setFuncSelecionado] = useState('Allan');
   const [mesAnoSelecionado, setMesAnoSelecionado] = useState('2026-10');
 
+  // Modal de relatório de faltas
+  const [modalFaltasAberto, setModalFaltasAberto] = useState(false);
+  const [mesAnoFaltas, setMesAnoFaltas] = useState('2026-10');
+
   const todosFuncionarios = useMemo(() => {
     return TURNOS_FUNCIONARIOS.flatMap((t) => t.funcionarios);
   }, []);
 
   const [escalas, setEscalas] = useState(() => {
-    const salvo = localStorage.getItem('mx_escalas_dinamicas_v1');
-    return salvo ? JSON.parse(salvo) : DADOS_PRESET;
+    try {
+      const salvo = localStorage.getItem('mx_escalas_dinamicas_v1');
+      return salvo ? JSON.parse(salvo) : DADOS_PRESET;
+    } catch {
+      return DADOS_PRESET;
+    }
+  });
+
+  const [observacoes, setObservacoes] = useState(() => {
+    try {
+      const salvoObs = localStorage.getItem('mx_escalas_obs_v1');
+      return salvoObs ? JSON.parse(salvoObs) : {};
+    } catch {
+      return {};
+    }
   });
 
   useEffect(() => {
     localStorage.setItem('mx_escalas_dinamicas_v1', JSON.stringify(escalas));
   }, [escalas]);
+
+  useEffect(() => {
+    localStorage.setItem('mx_escalas_obs_v1', JSON.stringify(observacoes));
+  }, [observacoes]);
 
   // Segunda-feira ativa
   const dataSegunda = useMemo(() => {
@@ -135,7 +156,11 @@ export function EscalasView({ theme = 'light' }) {
   }, [dataSegunda]);
 
   const getStatus = (nome, diaId) => {
-    return escalas[chaveSemana]?.[nome]?.[diaId] || 'TRABALHO';
+    return escalas?.[chaveSemana]?.[nome]?.[diaId] || 'TRABALHO';
+  };
+
+  const getObservacao = (nome, diaId) => {
+    return observacoes?.[chaveSemana]?.[nome]?.[diaId] || '';
   };
 
   const alterarStatus = (nome, diaId, novoStatus) => {
@@ -151,7 +176,59 @@ export function EscalasView({ theme = 'light' }) {
     }));
   };
 
-  // 1. PDF Semanal Geral
+  const alterarObservacao = (nome, diaId, texto) => {
+    setObservacoes((prev) => ({
+      ...prev,
+      [chaveSemana]: {
+        ...prev[chaveSemana],
+        [nome]: {
+          ...(prev[chaveSemana]?.[nome] || {}),
+          [diaId]: texto,
+        },
+      },
+    }));
+  };
+
+  // Contagem de faltas por operador
+  const relatorioFaltasPorOperador = useMemo(() => {
+    const [anoStr, mesStr] = (mesAnoFaltas || '2026-10').split('-');
+    const targetAno = parseInt(anoStr, 10);
+    const targetMes = parseInt(mesStr, 10) - 1;
+
+    const mapaFaltas = {};
+    todosFuncionarios.forEach((nome) => {
+      mapaFaltas[nome] = 0;
+    });
+
+    if (escalas) {
+      Object.keys(escalas).forEach((chave) => {
+        const match = chave.match(/semana_(\d{4})-(\d{2})-(\d{2})/);
+        if (!match) return;
+        const segAno = parseInt(match[1], 10);
+        const segMes = parseInt(match[2], 10) - 1;
+
+        if (segAno === targetAno && segMes === targetMes) {
+          const dadosSemana = escalas[chave] || {};
+          Object.keys(dadosSemana).forEach((nome) => {
+            if (mapaFaltas[nome] !== undefined && dadosSemana[nome]) {
+              DIAS_NOMES.forEach((dia) => {
+                if (dadosSemana[nome][dia.id] === 'FALTA') {
+                  mapaFaltas[nome] += 1;
+                }
+              });
+            }
+          });
+        }
+      });
+    }
+
+    return Object.entries(mapaFaltas).map(([nome, totalFaltas]) => ({
+      nome,
+      totalFaltas,
+    }));
+  }, [mesAnoFaltas, escalas, todosFuncionarios]);
+
+  // PDF Semanal Geral
   const exportarParaPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     let y = 16;
@@ -243,11 +320,11 @@ export function EscalasView({ theme = 'light' }) {
     doc.save(nomeArquivo);
   };
 
-  // 2. NOVA FUNÇÃO: PDF Individual Mensal por Funcionário
+  // PDF Individual Mensal
   const exportarPDFMensalIndividual = () => {
-    const [anoStr, mesStr] = mesAnoSelecionado.split('-');
+    const [anoStr, mesStr] = (mesAnoSelecionado || '2026-10').split('-');
     const ano = parseInt(anoStr, 10);
-    const mes = parseInt(mesStr, 10) - 1; // 0-based
+    const mes = parseInt(mesStr, 10) - 1;
 
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     let y = 16;
@@ -255,11 +332,9 @@ export function EscalasView({ theme = 'light' }) {
     const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
     const nomeMesExtenso = new Date(ano, mes, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
 
-    // Descobrir Turno do Colaborador
     const turnoObj = TURNOS_FUNCIONARIOS.find((t) => t.funcionarios.includes(funcSelecionado));
     const turnoNome = turnoObj ? turnoObj.nome : 'N/A';
 
-    // Cabeçalho do documento
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(16);
     doc.setTextColor(30, 41, 59);
@@ -271,19 +346,18 @@ export function EscalasView({ theme = 'light' }) {
     doc.text(`Colaborador: ${funcSelecionado} | Turno: ${turnoNome}`, 14, y + 6);
     doc.text(`Mês de Referência: ${nomeMesExtenso.toUpperCase()}`, 14, y + 12);
 
-    y += 22;
+    y += 24;
 
-    // Cabeçalho da tabela
     doc.setFillColor(226, 232, 240);
-    doc.rect(14, y, 182, 7, 'F');
+    doc.rect(14, y, 182, 8, 'F');
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(9);
     doc.setTextColor(30, 41, 59);
-    doc.text('Data', 18, y + 5);
-    doc.text('Dia da Semana', 60, y + 5);
-    doc.text('Status Registado', 130, y + 5);
+    doc.text('Data', 18, y + 5.5);
+    doc.text('Dia da Semana', 60, y + 5.5);
+    doc.text('Status Registrado / Observação', 130, y + 5.5);
 
-    y += 8;
+    y += 10;
 
     const resumo = { TRABALHO: 0, FOLGA: 0, ATESTADO: 0, DAY_OFF: 0, FALTA: 0 };
     const diasSemanaNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -297,21 +371,20 @@ export function EscalasView({ theme = 'light' }) {
       }
 
       const dataAtual = new Date(ano, mes, dia);
-      const diaSemanaIdx = dataAtual.getDay(); // 0 = dom, 1 = seg...
+      const diaSemanaIdx = dataAtual.getDay();
       const dataFmt = `${String(dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}/${ano}`;
       const diaSemanaNome = diasSemanaNomes[diaSemanaIdx];
 
-      // Mapeamento do id da escala (seg, ter, qua...)
       const mapIds = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
       const diaIdKey = mapIds[diaSemanaIdx];
 
-      // Status padrão (simulado ou do estado atual)
       const statusAtual = getStatus(funcSelecionado, diaIdKey);
+      const obsAtual = getObservacao(funcSelecionado, diaIdKey);
       resumo[statusAtual] = (resumo[statusAtual] || 0) + 1;
 
       if (dia % 2 === 0) {
         doc.setFillColor(248, 250, 252);
-        doc.rect(14, y - 4, 182, 6, 'F');
+        doc.rect(14, y - 4, 182, 6.5, 'F');
       }
 
       doc.setTextColor(30, 41, 59);
@@ -326,13 +399,16 @@ export function EscalasView({ theme = 'light' }) {
       else if (statusAtual === 'DAY_OFF') doc.setTextColor(147, 51, 234);
       else if (statusAtual === 'FALTA') doc.setTextColor(220, 38, 38);
 
-      doc.text(confStatus.label, 130, y);
+      const textoExibicao = obsAtual && statusAtual !== 'TRABALHO' 
+        ? `${confStatus.label} (${obsAtual})` 
+        : confStatus.label;
+
+      doc.text(textoExibicao, 130, y);
       doc.setFont('helvetica', 'normal');
 
-      y += 6;
+      y += 6.5;
     }
 
-    // Tabela de Resumo no final
     y += 6;
     if (y > 240) {
       doc.addPage();
@@ -422,6 +498,19 @@ export function EscalasView({ theme = 'light' }) {
       alignItems: 'center',
       gap: '6px',
     },
+    buttonFaltas: {
+      padding: '9px 16px',
+      borderRadius: '6px',
+      border: 'none',
+      background: '#dc2626',
+      color: '#ffffff',
+      cursor: 'pointer',
+      fontWeight: 'bold',
+      fontSize: '13px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+    },
     badgePeriodo: {
       padding: '8px 16px',
       background: isDark ? '#0f172a' : '#f1f5f9',
@@ -470,7 +559,7 @@ export function EscalasView({ theme = 'light' }) {
     th: {
       padding: '12px 8px',
       textAlign: 'center',
-      minWidth: '120px',
+      minWidth: '130px',
       color: isDark ? '#cbd5e1' : '#000000',
       borderBottom: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
       background: isDark ? '#111827' : '#f8fafc',
@@ -511,7 +600,6 @@ export function EscalasView({ theme = 'light' }) {
             Próxima Semana <span>→</span>
           </button>
 
-          {/* Exportar Geral Semanal */}
           <button
             onClick={exportarParaPDF}
             style={styles.buttonPdf}
@@ -520,13 +608,20 @@ export function EscalasView({ theme = 'light' }) {
             📄 PDF Semanal
           </button>
 
-          {/* Novo Botão: Exportar Mensal Individual */}
           <button
             onClick={() => setModalPdfAberto(true)}
             style={styles.buttonPdfIndiv}
             title="Exportar relatório mensal individual por colaborador"
           >
             👤 PDF Individual
+          </button>
+
+          <button
+            onClick={() => setModalFaltasAberto(true)}
+            style={styles.buttonFaltas}
+            title="Ver contagem de faltas por operador no mês"
+          >
+            📊 Faltas Mês
           </button>
         </div>
       </header>
@@ -591,6 +686,74 @@ export function EscalasView({ theme = 'light' }) {
                 style={{ padding: '8px 14px', borderRadius: '6px', border: 'none', background: '#0d9488', color: '#fff', fontWeight: 'bold', cursor: 'pointer' }}
               >
                 Gerar PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL RELATÓRIO DE FALTAS */}
+      {modalFaltasAberto && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: isDark ? '#1e293b' : '#ffffff',
+            padding: '24px',
+            borderRadius: '12px',
+            width: '500px',
+            maxWidth: '90%',
+            maxHeight: '80vh',
+            overflowY: 'auto',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            color: isDark ? '#ffffff' : '#000000'
+          }}>
+            <h3 style={{ margin: '0 0 16px 0', fontSize: '18px' }}>Relatório de Faltas no Mês</h3>
+
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', fontSize: '13px', marginBottom: '6px', fontWeight: 'bold' }}>Selecione o Mês:</label>
+              <input
+                type="month"
+                value={mesAnoFaltas}
+                onChange={(e) => setMesAnoFaltas(e.target.value)}
+                style={{ width: '100%', padding: '8px', borderRadius: '6px', border: '1px solid #cbd5e1', background: isDark ? '#0f172a' : '#fff', color: isDark ? '#fff' : '#000' }}
+              />
+            </div>
+
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px' }}>
+              <thead>
+                <tr style={{ background: isDark ? '#0f172a' : '#f1f5f9' }}>
+                  <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Operador</th>
+                  <th style={{ padding: '8px', textAlign: 'center', borderBottom: '1px solid #cbd5e1' }}>Total de Faltas</th>
+                </tr>
+              </thead>
+              <tbody>
+                {relatorioFaltasPorOperador.map((item) => (
+                  <tr key={item.nome} style={{ borderBottom: isDark ? '1px solid #334155' : '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '8px' }}>{item.nome}</td>
+                    <td style={{ padding: '8px', textAlign: 'center', fontWeight: 'bold', color: item.totalFaltas > 0 ? '#dc2626' : '#16a34a' }}>
+                      {item.totalFaltas}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setModalFaltasAberto(false)}
+                style={{ padding: '8px 14px', borderRadius: '6px', border: '1px solid #94a3b8', background: 'transparent', color: isDark ? '#fff' : '#000', cursor: 'pointer' }}
+              >
+                Fechar
               </button>
             </div>
           </div>
@@ -687,6 +850,7 @@ export function EscalasView({ theme = 'light' }) {
                         </td>
                         {diasCalculados.map((dia) => {
                           const statusAtual = getStatus(nome, dia.id);
+                          const obsAtual = getObservacao(nome, dia.id);
                           const confStatus = STATUS_OPCOES.find((s) => s.value === statusAtual) || STATUS_OPCOES[0];
 
                           return (
@@ -720,6 +884,27 @@ export function EscalasView({ theme = 'light' }) {
                                   </option>
                                 ))}
                               </select>
+
+                              {statusAtual !== 'TRABALHO' && (
+                                <input
+                                  type="text"
+                                  placeholder="Motivo..."
+                                  value={obsAtual}
+                                  onChange={(e) => alterarObservacao(nome, dia.id, e.target.value)}
+                                  style={{
+                                    marginTop: '6px',
+                                    width: '100%',
+                                    padding: '4px 6px',
+                                    fontSize: '11px',
+                                    borderRadius: '4px',
+                                    border: isDark ? '1px solid #475569' : '1px solid #cbd5e1',
+                                    background: isDark ? '#0f172a' : '#ffffff',
+                                    color: isDark ? '#ffffff' : '#000000',
+                                    boxSizing: 'border-box',
+                                    display: 'block'
+                                  }}
+                                />
+                              )}
                             </td>
                           );
                         })}

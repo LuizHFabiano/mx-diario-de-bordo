@@ -1,4 +1,4 @@
-const API_BASE = 'https://backend-theta-eight-68.vercel.app';
+const API_BASE = 'http://localhost:3000';
 
 export async function apiClient(path, options = {}) {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
@@ -12,7 +12,7 @@ export async function apiClient(path, options = {}) {
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || 'Não foi possível concluir a operação.');
+    throw new Error(payload.error || 'Nï¿½o foi possï¿½vel concluir a operaï¿½ï¿½o.');
   }
   return payload;
 }
