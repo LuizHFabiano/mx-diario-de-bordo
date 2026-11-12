@@ -1,24 +1,18 @@
-﻿const API_BASE = import.meta.env?.VITE_API_URL || 'https://backend-theta-eight-68.vercel.app';
+const API_BASE = 'http://localhost:3000';
 
 export async function apiClient(path, options = {}) {
   const url = path.startsWith('http') ? path : `${API_BASE}${path}`;
-  
-  // Se estiver chamando um domínio externo diferente, evita conflito com Access-Control-Allow-Origin: *
-  const isExternal = url.startsWith('http') && !url.includes(window.location.host);
-
   const response = await fetch(url, {
-    credentials: isExternal ? 'omit' : 'include',
+    credentials: 'include',
     headers: {
-      'Accept': 'application/json',
       ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
     },
     ...options,
   });
-
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.error || payload.message || 'Não foi possível concluir a operação.');
+    throw new Error(payload.error || 'N�o foi poss�vel concluir a opera��o.');
   }
   return payload;
 }
