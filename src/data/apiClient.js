@@ -1,5 +1,5 @@
 ﻿// Cliente de API centralizado
-export const API_BASE = import.meta.env.VITE_API_URL || 'https://backend-theta-eight-68.vercel.app';
+export const API_BASE = 'https://backend-theta-eight-68.vercel.app';
 
 export async function apiClient(path, options = {}) {
   const url = path.startsWith('http') 
