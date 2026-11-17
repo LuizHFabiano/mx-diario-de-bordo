@@ -639,3 +639,57 @@ button{ cursor:pointer; }
   .field-row{ flex-direction:column; gap:0; }
   .field-row .field{ min-width:0; }
 }
+
+/* Fix: Espaçamento para alinhamento das tabelas de Escala */
+table th {
+  padding: 12px 10px !important;
+  vertical-align: middle !important;
+}
+
+table td {
+  padding: 10px 8px !important;
+  vertical-align: middle !important;
+}
+
+/* Garante margem confortável para a primeira linha da tabela */
+table tbody tr:first-child td {
+  padding-top: 14px !important;
+}
+
+/* Correção de alinhamento e espaçamento nas tabelas de escala */
+table th,
+.escala-container table th {
+  padding: 12px 10px !important;
+  vertical-align: middle !important;
+}
+
+table td,
+.escala-container table td {
+  padding: 10px 8px !important;
+  vertical-align: middle !important;
+}
+
+/* Margem de segurança para a primeira linha não sobrepor o cabeçalho */
+table tbody tr:first-child td,
+.escala-container table tbody tr:first-child td {
+  padding-top: 14px !important;
+}
+
+/* Correção de alinhamento e espaçamento nas tabelas de escala */
+table th,
+.escala-container table th {
+  padding: 12px 10px !important;
+  vertical-align: middle !important;
+}
+
+table td,
+.escala-container table td {
+  padding: 10px 8px !important;
+  vertical-align: middle !important;
+}
+
+/* Margem de segurança para a primeira linha não sobrepor o cabeçalho */
+table tbody tr:first-child td,
+.escala-container table tbody tr:first-child td {
+  padding-top: 14px !important;
+}
