@@ -693,3 +693,46 @@ table tbody tr:first-child td,
 .escala-container table tbody tr:first-child td {
   padding-top: 14px !important;
 }
+
+.escala-table-container table {
+  border-collapse: separate !important;
+  border-spacing: 0 4px !important;
+}
+.escala-table-container table {
+  border-collapse: separate !important;
+  border-spacing: 0 4px !important;
+}
+
+.escala-table-container th {
+  padding: 14px 12px !important;
+  vertical-align: middle !important;
+  background-color: rgba(30, 41, 59, 0.8) !important;
+  font-weight: 600 !important;
+}
+
+.escala-table-container td {
+  padding: 12px 10px !important;
+  vertical-align: middle !important;
+  line-height: 1.5 !important;
+}
+
+/* Alinhamento e espaçamento das tabelas de escala */
+table, .escala-container table {
+  border-collapse: separate !important;
+  border-spacing: 0 4px !important;
+}
+
+table th, .escala-container table th {
+  padding: 14px 12px !important;
+  vertical-align: middle !important;
+  line-height: 1.4 !important;
+}
+
+table td, .escala-container table td {
+  padding: 12px 10px !important;
+  vertical-align: middle !important;
+}
+
+table tbody tr:first-child td {
+  padding-top: 14px !important;
+}
