@@ -1,5 +1,4 @@
-﻿import apiClient from '../data/apiClient';
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Button } from "./Button";
 import { ICONS } from "../icons";
 import { timeStrToMinutes, nowTimeBR } from "../utils/dateUtils";
@@ -22,25 +21,7 @@ function isValidTime(value) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
-
-  const [fetchedTeams, setFetchedTeams] = React.useState([]);
-
-  React.useEffect(() => {
-    async function loadTeams() {
-      if (!teams || teams.length === 0) {
-        try {
-          const res = await apiClient('/api/equipes');
-          const list = Array.isArray(res) ? res : (res.teams || res.equipes || []);
-          setFetchedTeams(list);
-        } catch (err) {
-          console.error("Erro ao carregar equipes:", err);
-        }
-      }
-    }
-    loadTeams();
-  }, [teams]);
-
-  const activeTeams = (teams && teams.length > 0) ? teams : fetchedTeams;
+export function TaskModal({
   task,
   categories,
   teams,
@@ -187,9 +168,9 @@ function isValidTime(value) {
                 onChange={(e) => setTeamId(e.target.value)}
               >
                 <option value="">Selecione uma equipe</option>
-                {(activeTeams || []).map((team) => (
-                  <option key={team.id || team.nome || team.name} value={team.id || team.nome || team.name}>
-                    {team.nome || team.name || `Equipe ${team.id}`}
+                {teams.map((team) => (
+                  <option key={team.id} value={team.id}>
+                    {team.name}
                   </option>
                 ))}
               </select>
@@ -244,6 +225,4 @@ function isValidTime(value) {
     </div>
   );
 }
-
-
 
