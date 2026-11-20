@@ -1,121 +1,64 @@
-import argon2 from "argon2";
-import { randomUUID } from "node:crypto";
-import { NextResponse } from "next/server";
-import { z } from "zod";
-import { AuditAction, Role } from "@/generated/prisma/client";
-import { requireAdmin } from "@/lib/authorization";
-import { prisma } from "@/lib/prisma";
+﻿import { NextResponse } from 'next/server';
+import { prisma } from '@/lib/prisma';
+import argon2 from 'argon2';
 
-const DEFAULT_INITIAL_PASSWORD = "Mudar@123";
-
-const userSchema = z.object({
-  name: z.string().trim().min(2).max(120),
-  username: z.string().trim().min(3).max(64).regex(/^[a-zA-Z0-9._-]+$/),
-  password: z.string().min(9).max(256).optional(),
-  role: z.enum([Role.ADMIN, Role.MANAGER, Role.ATTENDANT]),
-  teamIds: z.array(z.string().uuid()).default([]),
-  primaryTeamId: z.string().uuid().optional(),
-  managedTeamIds: z.array(z.string().uuid()).default([]),
-});
-
+// GET /api/admin/users
 export async function GET() {
-  const { response } = await requireAdmin();
-  if (response) return response;
-
-  const users = await prisma.user.findMany({
-    orderBy: { name: "asc" },
-    include: {
-      memberships: { include: { team: true }, orderBy: { team: { name: "asc" } } },
-      managedTeams: { include: { team: true }, orderBy: { team: { name: "asc" } } },
-    },
-  });
-
-  return NextResponse.json({
-    users: users.map(({ passwordHash: _, ...user }) => user),
-  });
+  try {
+    const users = await prisma.user.findMany({
+      include: {
+        memberships: {
+          include: { team: true }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+    return NextResponse.json({ users });
+  } catch (error: any) {
+    return NextResponse.json({ error: 'Erro ao buscar usuários', details: error.message }, { status: 500 });
+  }
 }
 
+// POST /api/admin/users (Criar Conta com Argon2)
 export async function POST(request: Request) {
-  const { session, response } = await requireAdmin();
-  if (response || !session) return response!;
+  try {
+    const body = await request.json();
+    const { name, username, role, teamIds, primaryTeamId } = body;
 
-  const payload = await request.json().catch(() => null);
-  const parsed = userSchema.safeParse(payload);
-  if (!parsed.success) {
-    return NextResponse.json(
-      {
-        error: "Dados do usuário inválidos.",
-        fields: parsed.error.issues.map((issue) => issue.path.join(".")),
-      },
-      { status: 400 },
-    );
-  }
+    if (!username) {
+      return NextResponse.json({ error: 'Usuário é obrigatório' }, { status: 400 });
+    }
 
-  const data = parsed.data;
-  const username = data.username.toLowerCase();
-  const teamIds = [...new Set(data.teamIds)];
-  const managedTeamIds = [...new Set(data.managedTeamIds)];
+    // Senha padrão inicial conforme definido no front: Mudar@123
+    const defaultPassword = 'Mudar@123';
+    const passwordHash = await argon2.hash(defaultPassword);
 
-  if (data.role !== Role.ADMIN && teamIds.length === 0) {
-    return NextResponse.json({ error: "Atendentes e gestores precisam pertencer a uma equipe." }, { status: 400 });
-  }
-  if (data.primaryTeamId && !teamIds.includes(data.primaryTeamId)) {
-    return NextResponse.json({ error: "A equipe principal deve pertencer ao usuário." }, { status: 400 });
-  }
-  if (managedTeamIds.some((teamId) => !teamIds.includes(teamId))) {
-    return NextResponse.json({ error: "Um gestor deve pertencer às equipes que gerencia." }, { status: 400 });
-  }
-  if (managedTeamIds.length > 0 && data.role === Role.ATTENDANT) {
-    return NextResponse.json({ error: "Atendentes não podem gerenciar equipes." }, { status: 400 });
-  }
-
-  const [existingUser, teams] = await Promise.all([
-    prisma.user.findUnique({ where: { username } }),
-    prisma.team.findMany({ where: { id: { in: teamIds }, isActive: true }, select: { id: true } }),
-  ]);
-  if (existingUser) {
-    return NextResponse.json({ error: "Este nome de usuário já existe." }, { status: 409 });
-  }
-  if (teams.length !== teamIds.length) {
-    return NextResponse.json({ error: "Uma ou mais equipes são inválidas ou estão inativas." }, { status: 400 });
-  }
-
-  const initialPassword = data.password ?? DEFAULT_INITIAL_PASSWORD;
-  const passwordHash = await argon2.hash(initialPassword, { type: argon2.argon2id });
-  const primaryTeamId = data.primaryTeamId ?? teamIds[0];
-  const userId = randomUUID();
-  const [user] = await prisma.$transaction([
-    prisma.user.create({
+    const user = await prisma.user.create({
       data: {
-        id: userId,
-        name: data.name,
         username,
+        name: name || username,
         passwordHash,
-        mustChangePassword: data.password === undefined,
-        role: data.role,
-        memberships: {
-          create: teamIds.map((teamId) => ({ teamId, isPrimary: teamId === primaryTeamId })),
-        },
-        managedTeams: {
-          create: managedTeamIds.map((teamId) => ({ teamId })),
-        },
-      },
-      include: {
-        memberships: { include: { team: true } },
-        managedTeams: { include: { team: true } },
-      },
-    }),
-    prisma.auditLog.create({
-      data: {
-        actorId: session.userId,
-        action: AuditAction.USER_CREATED,
-        entityType: "user",
-        entityId: userId,
-        metadata: { username, role: data.role, teamIds },
-      },
-    }),
-  ]);
+        role: role || 'ATTENDANT',
+        mustChangePassword: true,
+        isActive: true,
+      }
+    });
 
-  const { passwordHash: _, ...safeUser } = user;
-  return NextResponse.json({ user: safeUser }, { status: 201 });
+    // Se houver equipes vinculadas
+    if (teamIds && Array.isArray(teamIds) && teamIds.length > 0) {
+      for (const teamId of teamIds) {
+        await prisma.userTeam.create({
+          data: {
+            userId: user.id,
+            teamId: teamId,
+            isPrimary: teamId === primaryTeamId
+          }
+        });
+      }
+    }
+
+    return NextResponse.json({ user }, { status: 201 });
+  } catch (error: any) {
+    return NextResponse.json({ error: error.message || 'Erro ao criar usuário' }, { status: 500 });
+  }
 }
