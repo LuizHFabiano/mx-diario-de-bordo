@@ -1,6 +1,19 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 
+// Calcula a segunda-feira da semana atual usando o horário local da máquina
+function getSegundaFeiraAtual() {
+  const hoje = new Date();
+  const diaDaSemana = hoje.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+  const diferencaParaSegunda = diaDaSemana === 0 ? -6 : 1 - diaDaSemana;
+  
+  const segunda = new Date(hoje);
+  segunda.setDate(hoje.getDate() + diferencaParaSegunda);
+  segunda.setHours(0, 0, 0, 0);
+  
+  return segunda;
+}
+
 const TURNOS_FUNCIONARIOS = [
   {
     nome: 'Manhã',
@@ -41,13 +54,13 @@ const TURNOS_FUNCIONARIOS = [
 ];
 
 const DIAS_NOMES = [
-  { id: 'seg', label: 'Segunda', dayIdx: 1 },
-  { id: 'ter', label: 'Terça', dayIdx: 2 },
-  { id: 'qua', label: 'Quarta', dayIdx: 3 },
-  { id: 'qui', label: 'Quinta', dayIdx: 4 },
-  { id: 'sex', label: 'Sexta', dayIdx: 5 },
-  { id: 'sab', label: 'Sábado', dayIdx: 6 },
-  { id: 'dom', label: 'Domingo', dayIdx: 0 },
+  { id: 'seg', label: 'Segunda', curto: 'Seg', dayIdx: 1 },
+  { id: 'ter', label: 'Terça', curto: 'Ter', dayIdx: 2 },
+  { id: 'qua', label: 'Quarta', curto: 'Qua', dayIdx: 3 },
+  { id: 'qui', label: 'Quinta', curto: 'Qui', dayIdx: 4 },
+  { id: 'sex', label: 'Sexta', curto: 'Sex', dayIdx: 5 },
+  { id: 'sab', label: 'Sábado', curto: 'Sáb', dayIdx: 6 },
+  { id: 'dom', label: 'Domingo', curto: 'Dom', dayIdx: 0 },
 ];
 
 const STATUS_OPCOES = [
@@ -81,11 +94,20 @@ export function EscalasView({ theme = 'light' }) {
   // Modal de exportação individual
   const [modalPdfAberto, setModalPdfAberto] = useState(false);
   const [funcSelecionado, setFuncSelecionado] = useState('Allan');
-  const [mesAnoSelecionado, setMesAnoSelecionado] = useState('2026-10');
+  const [mesAnoSelecionado, setMesAnoSelecionado] = useState(() => {
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  });
 
   // Modal de relatório de faltas
   const [modalFaltasAberto, setModalFaltasAberto] = useState(false);
-  const [mesAnoFaltas, setMesAnoFaltas] = useState('2026-10');
+  const [mesAnoFaltas, setMesAnoFaltas] = useState(() => {
+    const hoje = new Date();
+    return `${hoje.getFullYear()}-${String(hoje.getMonth() + 1).padStart(2, '0')}`;
+  });
+
+  // Modal de configuração de folga fixa por colaborador
+  const [funcFolgaFixaModal, setFuncFolgaFixaModal] = useState(null);
 
   const todosFuncionarios = useMemo(() => {
     return TURNOS_FUNCIONARIOS.flatMap((t) => t.funcionarios);
@@ -109,6 +131,16 @@ export function EscalasView({ theme = 'light' }) {
     }
   });
 
+  // Estado das folgas fixas por funcionário: ex { "Djefferson": ["dom"], "Paulo H.": ["sab", "dom"] }
+  const [folgasFixas, setFolgasFixas] = useState(() => {
+    try {
+      const salvoFixas = localStorage.getItem('mx_folgas_fixas_v1');
+      return salvoFixas ? JSON.parse(salvoFixas) : {};
+    } catch {
+      return {};
+    }
+  });
+
   useEffect(() => {
     localStorage.setItem('mx_escalas_dinamicas_v1', JSON.stringify(escalas));
   }, [escalas]);
@@ -117,9 +149,13 @@ export function EscalasView({ theme = 'light' }) {
     localStorage.setItem('mx_escalas_obs_v1', JSON.stringify(observacoes));
   }, [observacoes]);
 
+  useEffect(() => {
+    localStorage.setItem('mx_folgas_fixas_v1', JSON.stringify(folgasFixas));
+  }, [folgasFixas]);
+
   // Segunda-feira ativa
   const dataSegunda = useMemo(() => {
-    const base = new Date(2026, 9, 19);
+    const base = getSegundaFeiraAtual();
     base.setDate(base.getDate() + semanaOffset * 7);
     return base;
   }, [semanaOffset]);
@@ -155,12 +191,21 @@ export function EscalasView({ theme = 'light' }) {
     return `${d1}/${m1} a ${d2}/${m2}/${y}`;
   }, [dataSegunda]);
 
-  const getStatus = (nome, diaId) => {
-    return escalas?.[chaveSemana]?.[nome]?.[diaId] || 'TRABALHO';
+  // Prioridade: 1) alteração manual na semana -> 2) folga fixa do colaborador -> 3) TRABALHO
+  const getStatus = (nome, diaId, chaveEspecifica = chaveSemana) => {
+    const statusManual = escalas?.[chaveEspecifica]?.[nome]?.[diaId];
+    if (statusManual) {
+      return statusManual;
+    }
+    const diasFixosDoFunc = folgasFixas?.[nome] || [];
+    if (diasFixosDoFunc.includes(diaId)) {
+      return 'FOLGA';
+    }
+    return 'TRABALHO';
   };
 
-  const getObservacao = (nome, diaId) => {
-    return observacoes?.[chaveSemana]?.[nome]?.[diaId] || '';
+  const getObservacao = (nome, diaId, chaveEspecifica = chaveSemana) => {
+    return observacoes?.[chaveEspecifica]?.[nome]?.[diaId] || '';
   };
 
   const alterarStatus = (nome, diaId, novoStatus) => {
@@ -189,9 +234,24 @@ export function EscalasView({ theme = 'light' }) {
     }));
   };
 
+  // Marca ou desmarca um dia como folga fixa de um colaborador
+  const toggleFolgaFixa = (nome, diaId) => {
+    setFolgasFixas((prev) => {
+      const atuais = prev[nome] || [];
+      const jaTem = atuais.includes(diaId);
+      const atualizados = jaTem
+        ? atuais.filter((d) => d !== diaId)
+        : [...atuais, diaId];
+      return {
+        ...prev,
+        [nome]: atualizados,
+      };
+    });
+  };
+
   // Contagem de faltas por operador
   const relatorioFaltasPorOperador = useMemo(() => {
-    const [anoStr, mesStr] = (mesAnoFaltas || '2026-10').split('-');
+    const [anoStr, mesStr] = (mesAnoFaltas || '2026-11').split('-');
     const targetAno = parseInt(anoStr, 10);
     const targetMes = parseInt(mesStr, 10) - 1;
 
@@ -322,7 +382,7 @@ export function EscalasView({ theme = 'light' }) {
 
   // PDF Individual Mensal
   const exportarPDFMensalIndividual = () => {
-    const [anoStr, mesStr] = (mesAnoSelecionado || '2026-10').split('-');
+    const [anoStr, mesStr] = (mesAnoSelecionado || '2026-11').split('-');
     const ano = parseInt(anoStr, 10);
     const mes = parseInt(mesStr, 10) - 1;
 
@@ -375,11 +435,17 @@ export function EscalasView({ theme = 'light' }) {
       const dataFmt = `${String(dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}/${ano}`;
       const diaSemanaNome = diasSemanaNomes[diaSemanaIdx];
 
+      // Calcula a segunda-feira da semana específica daquele dia do mês
+      const diffSeg = diaSemanaIdx === 0 ? -6 : 1 - diaSemanaIdx;
+      const segDaquelaSemana = new Date(dataAtual);
+      segDaquelaSemana.setDate(dataAtual.getDate() + diffSeg);
+      const chaveDaquelaSemana = `semana_${segDaquelaSemana.getFullYear()}-${String(segDaquelaSemana.getMonth() + 1).padStart(2, '0')}-${String(segDaquelaSemana.getDate()).padStart(2, '0')}`;
+
       const mapIds = ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sab'];
       const diaIdKey = mapIds[diaSemanaIdx];
 
-      const statusAtual = getStatus(funcSelecionado, diaIdKey);
-      const obsAtual = getObservacao(funcSelecionado, diaIdKey);
+      const statusAtual = getStatus(funcSelecionado, diaIdKey, chaveDaquelaSemana);
+      const obsAtual = getObservacao(funcSelecionado, diaIdKey, chaveDaquelaSemana);
       resumo[statusAtual] = (resumo[statusAtual] || 0) + 1;
 
       if (dia % 2 === 0) {
@@ -626,6 +692,87 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       </header>
 
+      {/* MODAL DE FOLGA FIXA POR COLABORADOR */}
+      {funcFolgaFixaModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: isDark ? '#1e293b' : '#ffffff',
+            padding: '24px',
+            borderRadius: '12px',
+            width: '440px',
+            maxWidth: '90%',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            color: isDark ? '#ffffff' : '#000000'
+          }}>
+            <h3 style={{ margin: '0 0 8px 0', fontSize: '18px' }}>
+              Folga Fixa: {funcFolgaFixaModal}
+            </h3>
+            <p style={{ margin: '0 0 16px 0', fontSize: '13px', color: isDark ? '#94a3b8' : '#475569' }}>
+              Selecione os dias da semana em que este colaborador folga automaticamente em todas as semanas:
+            </p>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '8px', marginBottom: '20px' }}>
+              {DIAS_NOMES.map((dia) => {
+                const selecionado = (folgasFixas[funcFolgaFixaModal] || []).includes(dia.id);
+                return (
+                  <button
+                    key={dia.id}
+                    type="button"
+                    onClick={() => toggleFolgaFixa(funcFolgaFixaModal, dia.id)}
+                    style={{
+                      padding: '10px 8px',
+                      borderRadius: '8px',
+                      border: selecionado
+                        ? '2px solid #2563eb'
+                        : isDark ? '1px solid #475569' : '1px solid #cbd5e1',
+                      background: selecionado
+                        ? (isDark ? '#1e3a8a' : '#dbeafe')
+                        : (isDark ? '#0f172a' : '#f8fafc'),
+                      color: selecionado
+                        ? (isDark ? '#ffffff' : '#1d4ed8')
+                        : (isDark ? '#cbd5e1' : '#334155'),
+                      fontWeight: 'bold',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {selecionado ? `✓ ${dia.curto}` : dia.curto}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setFuncFolgaFixaModal(null)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#2563eb',
+                  color: '#ffffff',
+                  fontWeight: 'bold',
+                  cursor: 'pointer'
+                }}
+              >
+                Concluir
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL MENSAL INDIVIDUAL */}
       {modalPdfAberto && (
         <div style={{
@@ -818,7 +965,7 @@ export function EscalasView({ theme = 'light' }) {
               <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
                 <thead>
                   <tr>
-                    <th style={{ ...styles.th, width: '200px', textAlign: 'left', paddingLeft: '16px' }}>
+                    <th style={{ ...styles.th, width: '210px', textAlign: 'left', paddingLeft: '16px' }}>
                       Funcionário
                     </th>
                     {diasCalculados.map((dia) => (
@@ -837,6 +984,11 @@ export function EscalasView({ theme = 'light' }) {
                       ? index % 2 === 0 ? '#1e293b' : '#172033'
                       : index % 2 === 0 ? '#ffffff' : '#fafafa';
 
+                    const diasFixosFunc = folgasFixas[nome] || [];
+                    const resumoFixas = diasFixosFunc.length > 0
+                      ? diasFixosFunc.map((id) => DIAS_NOMES.find((d) => d.id === id)?.curto).join(', ')
+                      : null;
+
                     return (
                       <tr
                         key={nome}
@@ -846,7 +998,31 @@ export function EscalasView({ theme = 'light' }) {
                         }}
                       >
                         <td style={styles.tdNome}>
-                          {nome}
+                          <div>{nome}</div>
+                          <button
+                            type="button"
+                            onClick={() => setFuncFolgaFixaModal(nome)}
+                            title="Configurar dias fixos de folga deste colaborador"
+                            style={{
+                              marginTop: '4px',
+                              padding: '2px 7px',
+                              fontSize: '11px',
+                              borderRadius: '4px',
+                              border: resumoFixas
+                                ? '1px solid #2563eb'
+                                : isDark ? '1px solid #475569' : '1px solid #cbd5e1',
+                              background: resumoFixas
+                                ? (isDark ? '#1e3a8a' : '#eff6ff')
+                                : 'transparent',
+                              color: resumoFixas
+                                ? (isDark ? '#93c5fd' : '#1d4ed8')
+                                : (isDark ? '#94a3b8' : '#64748b'),
+                              cursor: 'pointer',
+                              fontWeight: '600',
+                            }}
+                          >
+                            {resumoFixas ? `📅 Fixa: ${resumoFixas}` : '⚙️ Folga fixa'}
+                          </button>
                         </td>
                         {diasCalculados.map((dia) => {
                           const statusAtual = getStatus(nome, dia.id);
@@ -885,7 +1061,7 @@ export function EscalasView({ theme = 'light' }) {
                                 ))}
                               </select>
 
-                              {statusAtual !== 'TRABALHO' && (
+                              {['FALTA', 'ATESTADO'].includes(statusAtual) && (
                                 <input
                                   type="text"
                                   placeholder="Motivo..."
