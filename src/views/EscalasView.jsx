@@ -1,5 +1,6 @@
 ﻿import { useState, useEffect, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
+import { useAuth } from '../context/AuthContext';
 
 // Calcula a segunda-feira da semana atual usando o horário local da máquina
 function getSegundaFeiraAtual() {
@@ -14,7 +15,7 @@ function getSegundaFeiraAtual() {
   return segunda;
 }
 
-const TURNOS_FUNCIONARIOS = [
+const TURNOS_INICIAIS = [
   {
     nome: 'Manhã',
     funcionarios: [
@@ -86,10 +87,29 @@ const DADOS_PRESET = {
 
 export function EscalasView({ theme = 'light' }) {
   const isDark = theme === 'dark';
+  const { currentUser } = useAuth();
+  const isAdmin = currentUser?.role === 'ADMIN';
 
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [turnoFiltro, setTurnoFiltro] = useState('TODOS');
   const [busca, setBusca] = useState('');
+
+  // Lista dinâmica de turnos e colaboradores (salva no localStorage)
+  const [turnosFuncionarios, setTurnosFuncionarios] = useState(() => {
+    try {
+      const salvoTurnos = localStorage.getItem('mx_turnos_funcionarios_v1');
+      return salvoTurnos ? JSON.parse(salvoTurnos) : TURNOS_INICIAIS;
+    } catch {
+      return TURNOS_INICIAIS;
+    }
+  });
+
+  // Modal de gerenciamento de colaboradores (apenas ADMIN)
+  const [modalGerenciarAberto, setModalGerenciarAberto] = useState(false);
+  const [novoNome, setNovoNome] = useState('');
+  const [novoTurno, setNovoTurno] = useState('Manhã');
+  const [novasFolgasFixas, setNovasFolgasFixas] = useState(['dom']);
+  const [erroCadastro, setErroCadastro] = useState('');
 
   // Modal de exportação individual
   const [modalPdfAberto, setModalPdfAberto] = useState(false);
@@ -110,8 +130,8 @@ export function EscalasView({ theme = 'light' }) {
   const [funcFolgaFixaModal, setFuncFolgaFixaModal] = useState(null);
 
   const todosFuncionarios = useMemo(() => {
-    return TURNOS_FUNCIONARIOS.flatMap((t) => t.funcionarios);
-  }, []);
+    return turnosFuncionarios.flatMap((t) => t.funcionarios);
+  }, [turnosFuncionarios]);
 
   const [escalas, setEscalas] = useState(() => {
     try {
@@ -131,7 +151,6 @@ export function EscalasView({ theme = 'light' }) {
     }
   });
 
-  // Estado das folgas fixas por funcionário: ex { "Djefferson": ["dom"], "Paulo H.": ["sab", "dom"] }
   const [folgasFixas, setFolgasFixas] = useState(() => {
     try {
       const salvoFixas = localStorage.getItem('mx_folgas_fixas_v1');
@@ -140,6 +159,10 @@ export function EscalasView({ theme = 'light' }) {
       return {};
     }
   });
+
+  useEffect(() => {
+    localStorage.setItem('mx_turnos_funcionarios_v1', JSON.stringify(turnosFuncionarios));
+  }, [turnosFuncionarios]);
 
   useEffect(() => {
     localStorage.setItem('mx_escalas_dinamicas_v1', JSON.stringify(escalas));
@@ -152,6 +175,68 @@ export function EscalasView({ theme = 'light' }) {
   useEffect(() => {
     localStorage.setItem('mx_folgas_fixas_v1', JSON.stringify(folgasFixas));
   }, [folgasFixas]);
+
+  // Adicionar novo colaborador (ADMIN)
+  const adicionarColaborador = (e) => {
+    e.preventDefault();
+    if (!isAdmin) return;
+
+    const nomeLimpo = novoNome.trim();
+    if (!nomeLimpo) {
+      setErroCadastro('Informe o nome do colaborador.');
+      return;
+    }
+
+    const jaExiste = todosFuncionarios.some(
+      (f) => f.toLowerCase() === nomeLimpo.toLowerCase()
+    );
+    if (jaExiste) {
+      setErroCadastro('Já existe um colaborador com esse nome na escala.');
+      return;
+    }
+
+    setTurnosFuncionarios((prev) =>
+      prev.map((t) =>
+        t.nome === novoTurno
+          ? { ...t, funcionarios: [...t.funcionarios, nomeLimpo] }
+          : t
+      )
+    );
+
+    if (novasFolgasFixas.length > 0) {
+      setFolgasFixas((prev) => ({
+        ...prev,
+        [nomeLimpo]: novasFolgasFixas,
+      }));
+    }
+
+    setNovoNome('');
+    setNovasFolgasFixas(['dom']);
+    setErroCadastro('');
+  };
+
+  // Remover colaborador (ADMIN)
+  const removerColaborador = (nomeRemover, turnoNome) => {
+    if (!isAdmin) return;
+    const confirmar = window.confirm(
+      `Remover "${nomeRemover}" do turno ${turnoNome}? Ele deixará de aparecer nas escalas.`
+    );
+    if (!confirmar) return;
+
+    setTurnosFuncionarios((prev) =>
+      prev.map((t) =>
+        t.nome === turnoNome
+          ? { ...t, funcionarios: t.funcionarios.filter((f) => f !== nomeRemover) }
+          : t
+      )
+    );
+  };
+
+  const toggleNovaFolgaFixa = (diaId) => {
+    setNovasFolgasFixas((prev) =>
+      prev.includes(diaId) ? prev.filter((d) => d !== diaId) : [...prev, diaId]
+    );
+  };
 
   // Segunda-feira ativa
   const dataSegunda = useMemo(() => {
@@ -191,7 +276,6 @@ export function EscalasView({ theme = 'light' }) {
     return `${d1}/${m1} a ${d2}/${m2}/${y}`;
   }, [dataSegunda]);
 
-  // Prioridade: 1) alteração manual na semana -> 2) folga fixa do colaborador -> 3) TRABALHO
   const getStatus = (nome, diaId, chaveEspecifica = chaveSemana) => {
     const statusManual = escalas?.[chaveEspecifica]?.[nome]?.[diaId];
     if (statusManual) {
@@ -234,8 +318,8 @@ export function EscalasView({ theme = 'light' }) {
     }));
   };
 
-  // Marca ou desmarca um dia como folga fixa de um colaborador
   const toggleFolgaFixa = (nome, diaId) => {
+    if (!isAdmin) return;
     setFolgasFixas((prev) => {
       const atuais = prev[nome] || [];
       const jaTem = atuais.includes(diaId);
@@ -304,7 +388,9 @@ export function EscalasView({ theme = 'light' }) {
     doc.text(`Período da Escala: ${periodoTexto}`, 14, y + 6);
     y += 16;
 
-    TURNOS_FUNCIONARIOS.forEach((turno) => {
+    turnosFuncionarios.forEach((turno) => {
+      if (turno.funcionarios.length === 0) return;
+
       if (y > 175) {
         doc.addPage();
         y = 16;
@@ -329,7 +415,7 @@ export function EscalasView({ theme = 'light' }) {
         const xPos = 52 + i * colWidth;
         doc.text(`${dia.label} (${dia.dataFormatada})`, xPos, y + 5);
       });
-      y += 8;
+      y += 12;
 
       doc.setFont('helvetica', 'normal');
       turno.funcionarios.forEach((nome, idx) => {
@@ -392,7 +478,7 @@ export function EscalasView({ theme = 'light' }) {
     const totalDiasNoMes = new Date(ano, mes + 1, 0).getDate();
     const nomeMesExtenso = new Date(ano, mes, 1).toLocaleString('pt-BR', { month: 'long', year: 'numeric' });
 
-    const turnoObj = TURNOS_FUNCIONARIOS.find((t) => t.funcionarios.includes(funcSelecionado));
+    const turnoObj = turnosFuncionarios.find((t) => t.funcionarios.includes(funcSelecionado));
     const turnoNome = turnoObj ? turnoObj.nome : 'N/A';
 
     doc.setFont('helvetica', 'bold');
@@ -417,7 +503,7 @@ export function EscalasView({ theme = 'light' }) {
     doc.text('Dia da Semana', 60, y + 5.5);
     doc.text('Status Registrado / Observação', 130, y + 5.5);
 
-    y += 10;
+    y += 13;
 
     const resumo = { TRABALHO: 0, FOLGA: 0, ATESTADO: 0, DAY_OFF: 0, FALTA: 0 };
     const diasSemanaNomes = ['Domingo', 'Segunda-feira', 'Terça-feira', 'Quarta-feira', 'Quinta-feira', 'Sexta-feira', 'Sábado'];
@@ -435,7 +521,6 @@ export function EscalasView({ theme = 'light' }) {
       const dataFmt = `${String(dia).padStart(2, '0')}/${String(mes + 1).padStart(2, '0')}/${ano}`;
       const diaSemanaNome = diasSemanaNomes[diaSemanaIdx];
 
-      // Calcula a segunda-feira da semana específica daquele dia do mês
       const diffSeg = diaSemanaIdx === 0 ? -6 : 1 - diaSemanaIdx;
       const segDaquelaSemana = new Date(dataAtual);
       segDaquelaSemana.setDate(dataAtual.getDate() + diffSeg);
@@ -465,8 +550,8 @@ export function EscalasView({ theme = 'light' }) {
       else if (statusAtual === 'DAY_OFF') doc.setTextColor(147, 51, 234);
       else if (statusAtual === 'FALTA') doc.setTextColor(220, 38, 38);
 
-      const textoExibicao = obsAtual && statusAtual !== 'TRABALHO' 
-        ? `${confStatus.label} (${obsAtual})` 
+      const textoExibicao = obsAtual && ['FALTA', 'ATESTADO'].includes(statusAtual)
+        ? `${confStatus.label} (${obsAtual})`
         : confStatus.label;
 
       doc.text(textoExibicao, 130, y);
@@ -503,7 +588,7 @@ export function EscalasView({ theme = 'light' }) {
     setModalPdfAberto(false);
   };
 
-  const turnosFiltrados = TURNOS_FUNCIONARIOS.filter((t) =>
+  const turnosFiltrados = turnosFuncionarios.filter((t) =>
     turnoFiltro === 'TODOS' ? true : t.nome === turnoFiltro
   );
 
@@ -533,6 +618,19 @@ export function EscalasView({ theme = 'light' }) {
       color: isDark ? '#ffffff' : '#000000',
       cursor: 'pointer',
       fontWeight: '600',
+      fontSize: '13px',
+      display: 'flex',
+      alignItems: 'center',
+      gap: '6px',
+    },
+    buttonAdmin: {
+      padding: '9px 16px',
+      borderRadius: '6px',
+      border: 'none',
+      background: '#4f46e5',
+      color: '#ffffff',
+      cursor: 'pointer',
+      fontWeight: 'bold',
       fontSize: '13px',
       display: 'flex',
       alignItems: 'center',
@@ -666,6 +764,19 @@ export function EscalasView({ theme = 'light' }) {
             Próxima Semana <span>→</span>
           </button>
 
+          {isAdmin && (
+            <button
+              onClick={() => {
+                setErroCadastro('');
+                setModalGerenciarAberto(true);
+              }}
+              style={styles.buttonAdmin}
+              title="Adicionar ou remover funcionários da escala (Apenas Admin)"
+            >
+              👥 Colaboradores
+            </button>
+          )}
+
           <button
             onClick={exportarParaPDF}
             style={styles.buttonPdf}
@@ -675,7 +786,12 @@ export function EscalasView({ theme = 'light' }) {
           </button>
 
           <button
-            onClick={() => setModalPdfAberto(true)}
+            onClick={() => {
+              if (!todosFuncionarios.includes(funcSelecionado) && todosFuncionarios.length > 0) {
+                setFuncSelecionado(todosFuncionarios[0]);
+              }
+              setModalPdfAberto(true);
+            }}
             style={styles.buttonPdfIndiv}
             title="Exportar relatório mensal individual por colaborador"
           >
@@ -692,8 +808,251 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       </header>
 
+      {/* MODAL DE GERENCIAR COLABORADORES (APENAS ADMIN) */}
+      {isAdmin && modalGerenciarAberto && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.6)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000
+        }}>
+          <div style={{
+            background: isDark ? '#1e293b' : '#ffffff',
+            padding: '24px',
+            borderRadius: '12px',
+            width: '560px',
+            maxWidth: '94%',
+            maxHeight: '88vh',
+            overflowY: 'auto',
+            boxShadow: '0 20px 25px -5px rgba(0,0,0,0.3)',
+            color: isDark ? '#ffffff' : '#000000'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ margin: 0, fontSize: '18px' }}>Gerenciar Colaboradores da Escala</h3>
+              <button
+                onClick={() => setModalGerenciarAberto(false)}
+                style={{ background: 'transparent', border: 'none', fontSize: '18px', cursor: 'pointer', color: isDark ? '#94a3b8' : '#475569' }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Formulário de novo colaborador */}
+            <form
+              onSubmit={adicionarColaborador}
+              style={{
+                padding: '16px',
+                borderRadius: '8px',
+                background: isDark ? '#0f172a' : '#f8fafc',
+                border: isDark ? '1px solid #334155' : '1px solid #e2e8f0',
+                marginBottom: '20px'
+              }}
+            >
+              <h4 style={{ margin: '0 0 12px 0', fontSize: '14px', color: isDark ? '#38bdf8' : '#0284c7' }}>
+                + Adicionar Novo Colaborador
+              </h4>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '10px', marginBottom: '12px' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+                    Nome:
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Ex: Carlos M."
+                    value={novoNome}
+                    onChange={(e) => setNovoNome(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: isDark ? '1px solid #475569' : '1px solid #cbd5e1',
+                      background: isDark ? '#1e293b' : '#ffffff',
+                      color: isDark ? '#ffffff' : '#000000',
+                      boxSizing: 'border-box'
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
+                    Turno:
+                  </label>
+                  <select
+                    value={novoTurno}
+                    onChange={(e) => setNovoTurno(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      borderRadius: '6px',
+                      border: isDark ? '1px solid #475569' : '1px solid #cbd5e1',
+                      background: isDark ? '#1e293b' : '#ffffff',
+                      color: isDark ? '#ffffff' : '#000000',
+                      boxSizing: 'border-box'
+                    }}
+                  >
+                    {turnosFuncionarios.map((t) => (
+                      <option key={t.nome} value={t.nome}>{t.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '6px' }}>
+                  Dias de folga fixa semanal:
+                </label>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                  {DIAS_NOMES.map((dia) => {
+                    const marcado = novasFolgasFixas.includes(dia.id);
+                    return (
+                      <button
+                        key={dia.id}
+                        type="button"
+                        onClick={() => toggleNovaFolgaFixa(dia.id)}
+                        style={{
+                          padding: '6px 10px',
+                          borderRadius: '6px',
+                          border: marcado
+                            ? '2px solid #2563eb'
+                            : isDark ? '1px solid #475569' : '1px solid #cbd5e1',
+                          background: marcado
+                            ? (isDark ? '#1e3a8a' : '#dbeafe')
+                            : (isDark ? '#1e293b' : '#ffffff'),
+                          color: marcado
+                            ? (isDark ? '#ffffff' : '#1d4ed8')
+                            : (isDark ? '#cbd5e1' : '#334155'),
+                          fontWeight: 'bold',
+                          fontSize: '12px',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        {marcado ? `✓ ${dia.curto}` : dia.curto}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {erroCadastro && (
+                <p style={{ color: '#dc2626', fontSize: '12px', margin: '0 0 10px 0', fontWeight: 'bold' }}>
+                  {erroCadastro}
+                </p>
+              )}
+
+              <button
+                type="submit"
+                style={{
+                  padding: '8px 16px',
+                  borderRadius: '6px',
+                  border: 'none',
+                  background: '#16a34a',
+                  color: '#ffffff',
+                  fontWeight: 'bold',
+                  fontSize: '13px',
+                  cursor: 'pointer'
+                }}
+              >
+                Adicionar à Escala
+              </button>
+            </form>
+
+            {/* Listagem por turno para remoção */}
+            <div>
+              <h4 style={{ margin: '0 0 10px 0', fontSize: '14px' }}>Colaboradores Ativos</h4>
+              {turnosFuncionarios.map((turno) => (
+                <div key={turno.nome} style={{ marginBottom: '14px' }}>
+                  <div style={{
+                    fontSize: '12px',
+                    fontWeight: 'bold',
+                    padding: '4px 8px',
+                    background: isDark ? '#0f172a' : '#f1f5f9',
+                    borderRadius: '4px',
+                    marginBottom: '6px'
+                  }}>
+                    Turno {turno.nome} ({turno.funcionarios.length})
+                  </div>
+
+                  {turno.funcionarios.length === 0 ? (
+                    <p style={{ fontSize: '12px', color: '#94a3b8', margin: '4px 8px' }}>Nenhum colaborador neste turno.</p>
+                  ) : (
+                    turno.funcionarios.map((nome) => {
+                      const fixas = (folgasFixas[nome] || [])
+                        .map((id) => DIAS_NOMES.find((d) => d.id === id)?.curto)
+                        .join(', ');
+
+                      return (
+                        <div
+                          key={nome}
+                          style={{
+                            display: 'flex',
+                            justifyContent: 'space-between',
+                            alignItems: 'center',
+                            padding: '6px 8px',
+                            borderBottom: isDark ? '1px solid #334155' : '1px solid #f1f5f9',
+                            fontSize: '13px'
+                          }}
+                        >
+                          <div>
+                            <strong>{nome}</strong>
+                            {fixas && (
+                              <span style={{ marginLeft: '8px', fontSize: '11px', color: '#2563eb' }}>
+                                (Folga fixa: {fixas})
+                              </span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removerColaborador(nome, turno.nome)}
+                            style={{
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              border: '1px solid #dc2626',
+                              background: 'transparent',
+                              color: '#dc2626',
+                              fontSize: '11px',
+                              fontWeight: 'bold',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Remover
+                          </button>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '12px' }}>
+              <button
+                onClick={() => setModalGerenciarAberto(false)}
+                style={{
+                  padding: '8px 18px',
+                  borderRadius: '6px',
+                  border: '1px solid #94a3b8',
+                  background: 'transparent',
+                  color: isDark ? '#ffffff' : '#000000',
+                  cursor: 'pointer',
+                  fontWeight: '600'
+                }}
+              >
+                Fechar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* MODAL DE FOLGA FIXA POR COLABORADOR */}
-      {funcFolgaFixaModal && (
+      {isAdmin && funcFolgaFixaModal && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -999,30 +1358,47 @@ export function EscalasView({ theme = 'light' }) {
                       >
                         <td style={styles.tdNome}>
                           <div>{nome}</div>
-                          <button
-                            type="button"
-                            onClick={() => setFuncFolgaFixaModal(nome)}
-                            title="Configurar dias fixos de folga deste colaborador"
-                            style={{
-                              marginTop: '4px',
-                              padding: '2px 7px',
-                              fontSize: '11px',
-                              borderRadius: '4px',
-                              border: resumoFixas
-                                ? '1px solid #2563eb'
-                                : isDark ? '1px solid #475569' : '1px solid #cbd5e1',
-                              background: resumoFixas
-                                ? (isDark ? '#1e3a8a' : '#eff6ff')
-                                : 'transparent',
-                              color: resumoFixas
-                                ? (isDark ? '#93c5fd' : '#1d4ed8')
-                                : (isDark ? '#94a3b8' : '#64748b'),
-                              cursor: 'pointer',
-                              fontWeight: '600',
-                            }}
-                          >
-                            {resumoFixas ? `📅 Fixa: ${resumoFixas}` : '⚙️ Folga fixa'}
-                          </button>
+                          {isAdmin ? (
+                            <button
+                              type="button"
+                              onClick={() => setFuncFolgaFixaModal(nome)}
+                              title="Configurar dias fixos de folga deste colaborador"
+                              style={{
+                                marginTop: '4px',
+                                padding: '2px 7px',
+                                fontSize: '11px',
+                                borderRadius: '4px',
+                                border: resumoFixas
+                                  ? '1px solid #2563eb'
+                                  : isDark ? '1px solid #475569' : '1px solid #cbd5e1',
+                                background: resumoFixas
+                                  ? (isDark ? '#1e3a8a' : '#eff6ff')
+                                  : 'transparent',
+                                color: resumoFixas
+                                  ? (isDark ? '#93c5fd' : '#1d4ed8')
+                                  : (isDark ? '#94a3b8' : '#64748b'),
+                                cursor: 'pointer',
+                                fontWeight: '600',
+                              }}
+                            >
+                              {resumoFixas ? `📅 Fixa: ${resumoFixas}` : '⚙️ Folga fixa'}
+                            </button>
+                          ) : (
+                            resumoFixas && (
+                              <span style={{
+                                display: 'inline-block',
+                                marginTop: '4px',
+                                padding: '2px 7px',
+                                fontSize: '11px',
+                                borderRadius: '4px',
+                                background: isDark ? '#1e3a8a' : '#eff6ff',
+                                color: isDark ? '#93c5fd' : '#1d4ed8',
+                                fontWeight: '600',
+                              }}>
+                                📅 Fixa: {resumoFixas}
+                              </span>
+                            )
+                          )}
                         </td>
                         {diasCalculados.map((dia) => {
                           const statusAtual = getStatus(nome, dia.id);
