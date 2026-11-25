@@ -24,16 +24,23 @@ export async function GET() {
 export async function POST(request: Request) {
   try {
     const body = await request.json();
-    const { name, description } = body;
+    const { name, code } = body;
 
     if (!name) {
       return NextResponse.json({ error: 'Nome da equipe é obrigatório' }, { status: 400 });
     }
 
+    const generatedCode = (code || name)
+      .trim()
+      .toUpperCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^A-Z0-9]+/g, '_');
+
     const team = await prisma.team.create({
       data: {
         name,
-        description
+        code: generatedCode
       }
     });
 
