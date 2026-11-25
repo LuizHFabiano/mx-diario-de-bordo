@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+﻿import { useEffect, useState } from "react";
 import { Button } from "./Button";
 import { ICONS } from "../icons";
 import { timeStrToMinutes, nowTimeBR } from "../utils/dateUtils";
@@ -68,19 +68,19 @@ export function TaskModal({
   function handleSubmit(e) {
     e.preventDefault();
     if (!isValidTime(start)) {
-      setError("Informe um horário de início válido.");
+      setError("Informe um horÃ¡rio de inÃ­cio vÃ¡lido.");
       return;
     }
     if (end && !isValidTime(end)) {
-      setError("Informe um horário de término válido.");
+      setError("Informe um horÃ¡rio de tÃ©rmino vÃ¡lido.");
       return;
     }
     if (end && timeStrToMinutes(end) <= timeStrToMinutes(start)) {
-      setError("O horário de término deve ser depois do início.");
+      setError("O horÃ¡rio de tÃ©rmino deve ser depois do inÃ­cio.");
       return;
     }
     onSave({
-      title: title.trim() || "Sem título",
+      title: title.trim() || "Sem tÃ­tulo",
       start,
       end: end || null,
       description: description.trim(),
@@ -92,7 +92,7 @@ export function TaskModal({
   function handleDelete() {
     if (!task) return;
     if (
-      window.confirm("Excluir esta atividade? Essa ação não pode ser desfeita.")
+      window.confirm("Excluir esta atividade? Essa aÃ§Ã£o nÃ£o pode ser desfeita.")
     ) {
       onDelete(task.id);
       onClose();
@@ -112,11 +112,11 @@ export function TaskModal({
         </h2>
         <form onSubmit={handleSubmit}>
           <div className="field">
-            <label htmlFor="fieldTitulo">Título da atividade</label>
+            <label htmlFor="fieldTitulo">TÃ­tulo da atividade</label>
             <input
               id="fieldTitulo"
               type="text"
-              placeholder="Ex.: Reunião com cliente"
+              placeholder="Ex.: ReuniÃ£o com cliente"
               required
               value={title}
               onChange={(e) => setTitle(e.target.value)}
@@ -124,7 +124,7 @@ export function TaskModal({
           </div>
           <div className="field-row">
             <div className="field">
-              <label htmlFor="fieldInicio">Horário de início</label>
+              <label htmlFor="fieldInicio">HorÃ¡rio de inÃ­cio</label>
               <input
                 id="fieldInicio"
                 type="text"
@@ -141,7 +141,7 @@ export function TaskModal({
               />
             </div>
             <div className="field">
-              <label htmlFor="fieldFim">Horário de término (opcional)</label>
+              <label htmlFor="fieldFim">HorÃ¡rio de tÃ©rmino (opcional)</label>
               <input
                 id="fieldFim"
                 type="text"
@@ -167,6 +167,7 @@ export function TaskModal({
                 value={teamId}
                 onChange={(e) => setTeamId(e.target.value)}
               >
+                <option value="">Selecione uma equipe</option>
                 {teams.map((team) => (
                   <option key={team.id} value={team.id}>
                     {team.name}
@@ -191,7 +192,7 @@ export function TaskModal({
             </select>
           </div>
           <div className="field">
-            <label htmlFor="fieldDesc">Descrição</label>
+            <label htmlFor="fieldDesc">DescriÃ§Ã£o</label>
             <textarea
               id="fieldDesc"
               placeholder="O que foi feito nesse intervalo..."
@@ -224,3 +225,4 @@ export function TaskModal({
     </div>
   );
 }
+

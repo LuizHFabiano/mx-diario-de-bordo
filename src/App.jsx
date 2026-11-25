@@ -1,10 +1,11 @@
-import { useState } from 'react';
+﻿import { useState } from 'react';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { AppDataProvider } from './context/AppDataContext';
 import { AuthScreen } from './components/AuthScreen';
 import { Sidebar } from './components/Sidebar';
 import { HojeView } from './views/HojeView';
 import { PassadosView } from './views/PassadosView';
+import { EscalasView } from './views/EscalasView';
 import { ConfigView } from './views/ConfigView';
 import { AdminView } from './views/AdminView';
 import { RequiredPasswordChange } from './components/RequiredPasswordChange';
@@ -26,8 +27,9 @@ function AppShell() {
         <main className="main">
           {view === 'hoje' && <HojeView theme={theme} onToggleTheme={toggleTheme} />}
           {view === 'passados' && <PassadosView />}
+          {view === 'escalas' && <EscalasView theme={theme} />}
           {view === 'config' && <ConfigView />}
-          {view === 'admin' && currentUser.role === 'ADMIN' && <AdminView />}
+          {view === 'admin' && currentUser?.role === 'ADMIN' && <AdminView />}
         </main>
       </div>
     </AppDataProvider>

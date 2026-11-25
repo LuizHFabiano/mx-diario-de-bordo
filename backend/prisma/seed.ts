@@ -1,98 +1,86 @@
-import "dotenv/config";
-import argon2 from "argon2";
-import { PrismaPg } from "@prisma/adapter-pg";
-import { AuditAction, PrismaClient, Role } from "../src/generated/prisma/client";
+import 'dotenv/config';
+import { PrismaPg } from '@prisma/adapter-pg';
+import { PrismaClient } from '../src/generated/prisma/client';
+import argon2 from 'argon2';
 
-const requiredEnvironment = [
-  "INITIAL_ADMIN_NAME",
-  "INITIAL_ADMIN_USERNAME",
-  "INITIAL_ADMIN_PASSWORD",
-] as const;
+const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL });
+const prisma = new PrismaClient({ adapter });
 
-function getRequiredEnvironment(name: (typeof requiredEnvironment)[number]) {
-  const value = process.env[name]?.trim();
-  if (!value) {
-    throw new Error(`${name} precisa ser definido antes de executar o seed.`);
-  }
-  return value;
-}
+const funcionarios = [
+  // Turno Manhã
+  { name: 'Djefferson', username: 'djefferson' },
+  { name: 'Djonattan', username: 'djonattan' },
+  { name: 'Vitor', username: 'vitor' },
+  { name: 'Luigi', username: 'luigi' },
+  { name: 'Luiz S.', username: 'luiz.s' },
+  { name: 'Maria G.', username: 'maria.g' },
+  { name: 'Paulo H.', username: 'paulo.h' },
+  { name: 'Pietro', username: 'pietro' },
+
+  // Turno Tarde
+  { name: 'Felipe P.', username: 'felipe.p' },
+  { name: 'Gabriel', username: 'gabriel' },
+  { name: 'Guilherme', username: 'guilherme' },
+  { name: 'João Pedro', username: 'joao.pedro' },
+  { name: 'Kauê', username: 'kaue' },
+  { name: 'Leonardo M.', username: 'leonardo.m' },
+  { name: 'Yuri', username: 'yuri' },
+
+  // Turno Noite
+  { name: 'Allan', username: 'allan' },
+  { name: 'Enerdan', username: 'enerdan' },
+  { name: 'Lucas', username: 'lucas' },
+  { name: 'Miguel', username: 'miguel' },
+  { name: 'Natan', username: 'natan' },
+  { name: 'Victor', username: 'victor' },
+];
 
 async function main() {
-  const connectionString = process.env.DATABASE_URL;
-  if (!connectionString) throw new Error("DATABASE_URL nÃ£o foi configurada.");
+  const adminPassword = process.env.INITIAL_ADMIN_PASSWORD || '@Luiz22052212345';
+  const adminHash = await argon2.hash(adminPassword);
 
-  const adminName = getRequiredEnvironment("INITIAL_ADMIN_NAME");
-  const adminUsername = getRequiredEnvironment("INITIAL_ADMIN_USERNAME").toLowerCase();
-  const adminPassword = getRequiredEnvironment("INITIAL_ADMIN_PASSWORD");
+  // Senha padrão dos funcionários: 12345678
+  const funcionarioPassword = '12345678';
+  const funcionarioHash = await argon2.hash(funcionarioPassword);
 
-  if (adminPassword.length < 14) {
-    throw new Error("INITIAL_ADMIN_PASSWORD deve ter ao menos 14 caracteres.");
-  }
-
-  const prisma = new PrismaClient({
-    adapter: new PrismaPg({ connectionString }),
+  console.log('?? Cadastrando/Atualizando Administrador...');
+  await prisma.user.upsert({
+    where: { username: process.env.INITIAL_ADMIN_USERNAME || 'admin' },
+    update: { passwordHash: adminHash },
+    create: {
+      name: process.env.INITIAL_ADMIN_NAME || 'Administrador',
+      username: process.env.INITIAL_ADMIN_USERNAME || 'admin',
+      passwordHash: adminHash,
+      role: 'ADMIN',
+    },
   });
 
-  try {
-    const existingAdmin = await prisma.user.findUnique({
-      where: { username: adminUsername },
+  console.log('?? Cadastrando/Atualizando os 21 funcionários com a senha 12345678...');
+  for (const func of funcionarios) {
+    await prisma.user.upsert({
+      where: { username: func.username },
+      update: { 
+        name: func.name,
+        passwordHash: funcionarioHash,
+      },
+      create: {
+        name: func.name,
+        username: func.username,
+        passwordHash: funcionarioHash,
+        role: 'ATTENDANT',
+      },
     });
-
-    const admin =
-      existingAdmin ??
-      (await prisma.user.create({
-        data: {
-          name: adminName,
-          username: adminUsername,
-          passwordHash: await argon2.hash(adminPassword, {
-            type: argon2.argon2id,
-          }),
-          role: Role.ADMIN,
-        },
-      }));
-
-    if (!existingAdmin) {
-      await prisma.auditLog.create({
-        data: {
-          actorId: admin.id,
-          action: AuditAction.USER_CREATED,
-          entityType: "user",
-          entityId: admin.id,
-          metadata: { source: "seed", role: Role.ADMIN },
-        },
-      });
-    }
-
-    for (const team of [
-      { name: "Suporte", code: "SUPORTE" },
-      { name: "Financeiro", code: "FINANCEIRO" },
-    ]) {
-      await prisma.team.upsert({
-        where: { code: team.code },
-        update: {},
-        create: team,
-      });
-    }
-
-    await prisma.category.upsert({
-      where: { name: "PoP" },
-      update: {},
-      create: { name: "PoP", color: "#E5484D" },
-    });
-
-    await prisma.systemSetting.upsert({
-      where: { id: "global" },
-      update: {},
-      create: { id: "global" },
-    });
-
-    console.log(`Seed concluÃ­do. Administrador: ${admin.username}`);
-  } finally {
-    await prisma.$disconnect();
+    console.log(`? Atualizado: ${func.name} (${func.username})`);
   }
+
+  console.log('\n? Todos os funcionários agora têm a senha: 12345678');
 }
 
-main().catch((error: unknown) => {
-  console.error(error);
-  process.exit(1);
-});
+main()
+  .catch((e) => {
+    console.error(e);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

@@ -1,4 +1,4 @@
-import { ICONS } from "../icons";
+﻿import { ICONS } from "../icons";
 import logoMx from "../assets/logo-mx.png";
 import logoMxDark from "../assets/logo-mx-dark.png";
 import { useAuth } from "../context/AuthContext";
@@ -6,6 +6,7 @@ import { useAuth } from "../context/AuthContext";
 const NAV_ITEMS = [
   { key: "hoje", label: "Diários de Hoje", icon: ICONS.doc },
   { key: "passados", label: "Diários Passados", icon: ICONS.archive },
+  { key: "escalas", label: "Escalas", icon: ICONS.calendar || ICONS.doc },
 ];
 
 export function Sidebar({ view, onChangeView, theme }) {
@@ -31,7 +32,7 @@ export function Sidebar({ view, onChangeView, theme }) {
             <span>{item.label}</span>
           </button>
         ))}
-        {currentUser.role === "ADMIN" && (
+        {currentUser?.role === "ADMIN" && (
           <button
             type="button"
             className={`nav__item${view === "admin" ? " is-active" : ""}`}

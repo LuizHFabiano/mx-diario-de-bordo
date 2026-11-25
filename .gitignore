@@ -6,3 +6,6 @@ dist
 !.env.example
 
 projeto.zip
+
+.vercel
+.env*

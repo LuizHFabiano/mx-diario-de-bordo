@@ -18,6 +18,19 @@ enum WorkDayStatus {
   CLOSED
 }
 
+enum ShiftType {
+  MORNING
+  AFTERNOON
+  NIGHT
+}
+
+enum ScheduleStatus {
+  WORK
+  OFF
+  MEDICAL
+  ABSENT
+}
+
 enum AuditAction {
   USER_CREATED
   USER_UPDATED
@@ -35,22 +48,24 @@ enum AuditAction {
 }
 
 model User {
-  id              String     @id @default(uuid()) @db.Uuid
-  name            String     @db.VarChar(120)
-  username        String     @unique @db.VarChar(64)
-  passwordHash    String     @map("password_hash")
-  mustChangePassword Boolean @default(false) @map("must_change_password")
-  role            Role       @default(ATTENDANT)
-  isActive        Boolean    @default(true) @map("is_active")
-  createdAt       DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt       DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
-  memberships     UserTeam[]
-  managedTeams    TeamManager[]
-  createdTasks    Task[]     @relation("TaskCreator")
-  updatedTasks    Task[]     @relation("TaskLastEditor")
-  closedWorkDays  WorkDay[]  @relation("WorkDayClosedBy")
-  sessions        Session[]
-  auditLogs       AuditLog[] @relation("AuditActor")
+  id                 String        @id @default(uuid()) @db.Uuid
+  name               String        @db.VarChar(120)
+  username           String        @unique @db.VarChar(64)
+  passwordHash       String        @map("password_hash")
+  mustChangePassword Boolean       @default(false) @map("must_change_password")
+  role               Role          @default(ATTENDANT)
+  isActive           Boolean       @default(true) @map("is_active")
+  fixedDaysOff       String[]      @default(["sunday"]) @map("fixed_days_off")
+  createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
+  memberships        UserTeam[]
+  managedTeams       TeamManager[]
+  createdTasks       Task[]        @relation("TaskCreator")
+  updatedTasks       Task[]        @relation("TaskLastEditor")
+  closedWorkDays     WorkDay[]     @relation("WorkDayClosedBy")
+  sessions           Session[]
+  auditLogs          AuditLog[]    @relation("AuditActor")
+  workScales         WorkScale[]
 }
 
 model Team {
@@ -67,12 +82,12 @@ model Team {
 }
 
 model UserTeam {
-  userId    String  @map("user_id") @db.Uuid
-  teamId    String  @map("team_id") @db.Uuid
-  isPrimary Boolean @default(false) @map("is_primary")
+  userId    String   @map("user_id") @db.Uuid
+  teamId    String   @map("team_id") @db.Uuid
+  isPrimary Boolean  @default(false) @map("is_primary")
   joinedAt  DateTime @default(now()) @map("joined_at") @db.Timestamptz(3)
-  user      User    @relation(fields: [userId], references: [id], onDelete: Restrict)
-  team      Team    @relation(fields: [teamId], references: [id], onDelete: Restrict)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Restrict)
+  team      Team     @relation(fields: [teamId], references: [id], onDelete: Restrict)
 
   @@id([userId, teamId])
   @@index([teamId])
@@ -145,11 +160,11 @@ model Task {
 }
 
 model SystemSetting {
-  id                  String   @id @default("global") @db.VarChar(20)
-  dayStart            String   @default("08:00") @map("day_start") @db.VarChar(5)
-  dayEnd              String   @default("23:00") @map("day_end") @db.VarChar(5)
-  allowManualClose    Boolean  @default(false) @map("allow_manual_close")
-  updatedAt           DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id               String   @id @default("global") @db.VarChar(20)
+  dayStart         String   @default("08:00") @map("day_start") @db.VarChar(5)
+  dayEnd           String   @default("23:00") @map("day_end") @db.VarChar(5)
+  allowManualClose Boolean  @default(false) @map("allow_manual_close")
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
 }
 
 model Session {
@@ -177,4 +192,37 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([actorId, createdAt])
   @@map("audit_logs")
+}
+
+model WorkScale {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  teamId    String?   @map("team_id") @db.Uuid
+  shift     ShiftType @default(MORNING)
+  weekStart DateTime  @map("week_start") @db.Date
+
+  monday    ScheduleStatus @default(WORK)
+  tuesday   ScheduleStatus @default(WORK)
+  wednesday ScheduleStatus @default(WORK)
+  thursday  ScheduleStatus @default(WORK)
+  friday    ScheduleStatus @default(WORK)
+  saturday  ScheduleStatus @default(WORK)
+  sunday    ScheduleStatus @default(OFF)
+
+  // NOVOS CAMPOS PARA OBSERVAÇÃO DE CADADIA (Justificativas de folga, atestado, etc)
+  mondayNotes    String? @map("monday_notes") @db.Text
+  tuesdayNotes   String? @map("tuesday_notes") @db.Text
+  wednesdayNotes String? @map("wednesday_notes") @db.Text
+  thursdayNotes  String? @map("thursday_notes") @db.Text
+  fridayNotes    String? @map("friday_notes") @db.Text
+  saturdayNotes  String? @map("saturday_notes") @db.Text
+  sundayNotes    String? @map("sunday_notes") @db.Text
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
+  @@map("work_scales")
 }
