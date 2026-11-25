@@ -1,5 +1,5 @@
-﻿// Cliente de API centralizado
-export const API_BASE = 'http://localhost:3000';
+// Cliente de API centralizado
+export const API_BASE = '';
 
 export async function apiClient(path, options = {}) {
   const url = path.startsWith('http') 
@@ -19,6 +19,7 @@ export async function apiClient(path, options = {}) {
 
   const response = await fetch(url, {
     method: options.method || 'GET',
+    credentials: 'include',
     headers,
     body: options.body,
   });

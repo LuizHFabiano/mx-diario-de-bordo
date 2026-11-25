@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 
 interface User {
   id: string;
@@ -28,7 +28,7 @@ export const AdminView: React.FC = () => {
   const [selectedTeamId, setSelectedTeamId] = useState('');
   const [creating, setCreating] = useState(false);
 
-  const API_BASE = 'http://localhost:3000/api';
+  const API_BASE = '/api';
 
   const getHeaders = () => {
     const token = localStorage.getItem('token') || localStorage.getItem('auth_token');
