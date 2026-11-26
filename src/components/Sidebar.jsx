@@ -1,4 +1,4 @@
-﻿import { ICONS } from "../icons";
+import { ICONS } from "../icons";
 import logoMx from "../assets/logo-mx.png";
 import logoMxDark from "../assets/logo-mx-dark.png";
 import { useAuth } from "../context/AuthContext";

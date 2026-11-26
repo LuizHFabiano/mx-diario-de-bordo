@@ -1,4 +1,4 @@
-﻿const path = require('path');
+const path = require('path');
 // Importa diretamente do cliente gerado no seu projeto
 const { PrismaClient } = require('../src/generated/prisma');
 
