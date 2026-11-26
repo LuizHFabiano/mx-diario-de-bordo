@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { jsPDF } from 'jspdf';
 import { useAuth } from '../context/AuthContext';
 
