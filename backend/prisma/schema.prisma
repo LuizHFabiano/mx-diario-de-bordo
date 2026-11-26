@@ -27,7 +27,9 @@ enum ShiftType {
 enum ScheduleStatus {
   WORK
   OFF
+  HOLIDAY
   MEDICAL
+  DAY_OFF
   ABSENT
 }
 
@@ -56,6 +58,8 @@ model User {
   role               Role          @default(ATTENDANT)
   isActive           Boolean       @default(true) @map("is_active")
   fixedDaysOff       String[]      @default(["sunday"]) @map("fixed_days_off")
+  admissionDate      DateTime?     @map("admission_date") @db.Date
+  terminationDate    DateTime?     @map("termination_date") @db.Date
   createdAt          DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt          DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
   memberships        UserTeam[]
@@ -209,7 +213,6 @@ model WorkScale {
   saturday  ScheduleStatus @default(WORK)
   sunday    ScheduleStatus @default(OFF)
 
-  // NOVOS CAMPOS PARA OBSERVAÇÃO DE CADADIA (Justificativas de folga, atestado, etc)
   mondayNotes    String? @map("monday_notes") @db.Text
   tuesdayNotes   String? @map("tuesday_notes") @db.Text
   wednesdayNotes String? @map("wednesday_notes") @db.Text
@@ -225,4 +228,12 @@ model WorkScale {
 
   @@unique([userId, weekStart])
   @@map("work_scales")
+}
+
+model WorkScaleState {
+  id        String   @id @default("global") @db.VarChar(20)
+  payload   Json
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@map("work_scale_states")
 }
