@@ -1,4 +1,4 @@
-﻿import { useState, useEffect, useMemo } from 'react';
+﻿import { useState, useEffect, useMemo, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../data/apiClient';
@@ -133,6 +133,7 @@ export function EscalasView({ theme = 'light' }) {
   const isDark = theme === 'dark';
   const { currentUser } = useAuth();
   const isAdmin = currentUser?.role === 'ADMIN';
+  const temPermissaoEdicao = ['ADMIN', 'MANAGER'].includes(currentUser?.role);
 
   const [semanaOffset, setSemanaOffset] = useState(0);
   const [setorFiltro, setSetorFiltro] = useState('TODOS');
@@ -193,7 +194,7 @@ export function EscalasView({ theme = 'light' }) {
   const [desligandoFunc, setDesligandoFunc] = useState(null); // { nome, turnoNome }
   const [dataDesligamentoInput, setDataDesligamentoInput] = useState(() => getHojeISO());
 
- // Modal de exportação individual
+  // Modal de exportação individual
   const [modalPdfAberto, setModalPdfAberto] = useState(false);
   const [buscaPdfFunc, setBuscaPdfFunc] = useState('');
   const [dropdownPdfAberto, setDropdownPdfAberto] = useState(false);
@@ -287,6 +288,13 @@ export function EscalasView({ theme = 'light' }) {
   });
 
   const [apiPronta, setApiPronta] = useState(false);
+  const [erroCarregamento, setErroCarregamento] = useState(false);
+  const [mensagemConflito, setMensagemConflito] = useState('');
+  const updatedAtRef = useRef(null);
+  const ignorarProximoSaveRef = useRef(false);
+
+  const podeEditar =
+    temPermissaoEdicao && !erroCarregamento && !mensagemConflito;
 
   // Carrega os dados compartilhados do PostgreSQL ao abrir a aba Escalas
   useEffect(() => {
@@ -294,6 +302,9 @@ export function EscalasView({ theme = 'light' }) {
     apiClient('/api/work-scales')
       .then((res) => {
         if (!ativo) return;
+        updatedAtRef.current = res?.updatedAt ?? null;
+        ignorarProximoSaveRef.current = true;
+
         if (res?.data) {
           if (Array.isArray(res.data.turnosFuncionarios)) {
             setTurnosFuncionarios(res.data.turnosFuncionarios);
@@ -314,10 +325,13 @@ export function EscalasView({ theme = 'light' }) {
             setFolgasFixas(res.data.folgasFixas);
           }
         }
+        setErroCarregamento(false);
         setApiPronta(true);
       })
-      .catch(() => {
-        if (ativo) setApiPronta(true);
+      .catch((err) => {
+        if (!ativo) return;
+        console.error('Erro ao carregar escalas:', err);
+        setErroCarregamento(true);
       });
     return () => {
       ativo = false;
@@ -326,11 +340,18 @@ export function EscalasView({ theme = 'light' }) {
 
   // Salva automaticamente no PostgreSQL sempre que houver alteração na escala
   useEffect(() => {
-    if (!apiPronta) return;
+    if (!apiPronta || !podeEditar) return;
+
+    if (ignorarProximoSaveRef.current) {
+      ignorarProximoSaveRef.current = false;
+      return;
+    }
+
     const timer = setTimeout(() => {
       apiClient('/api/work-scales', {
         method: 'PUT',
         body: JSON.stringify({
+          updatedAt: updatedAtRef.current,
           turnosFuncionarios,
           setoresFuncionarios,
           vigenciaFuncionarios,
@@ -338,11 +359,31 @@ export function EscalasView({ theme = 'light' }) {
           observacoes,
           folgasFixas,
         }),
-      }).catch((err) => console.error('Erro ao sincronizar escalas:', err));
+      })
+        .then((res) => {
+          if (res?.updatedAt) {
+            updatedAtRef.current = res.updatedAt;
+          }
+        })
+        .catch((err) => {
+          const msg = String(err?.message || '');
+          if (
+            err?.status === 409 ||
+            msg.includes('409') ||
+            msg.toLowerCase().includes('outra pessoa')
+          ) {
+            setMensagemConflito(
+              'A escala foi alterada por outra pessoa, recarregue a página'
+            );
+            return;
+          }
+          console.error('Erro ao sincronizar escalas:', err);
+        });
     }, 500);
     return () => clearTimeout(timer);
   }, [
     apiPronta,
+    podeEditar,
     turnosFuncionarios,
     setoresFuncionarios,
     vigenciaFuncionarios,
@@ -375,11 +416,10 @@ export function EscalasView({ theme = 'light' }) {
     localStorage.setItem('mx_folgas_fixas_v1', JSON.stringify(folgasFixas));
   }, [folgasFixas]);
 
-
   // Adicionar novo colaborador (ADMIN)
   const adicionarColaborador = (e) => {
     e.preventDefault();
-    if (!isAdmin) return;
+    if (!isAdmin || !podeEditar) return;
 
     const nomeLimpo = novoNome.trim();
     if (!nomeLimpo) {
@@ -432,6 +472,7 @@ export function EscalasView({ theme = 'light' }) {
 
   // Iniciar edição de colaborador (ADMIN)
   const iniciarEdicaoColaborador = (nome, turnoNome) => {
+    if (!isAdmin || !podeEditar) return;
     const vig = getVigenciaColaborador(nome);
     setEditandoFunc({ nomeOriginal: nome, turnoOriginal: turnoNome });
     setEditNome(nome);
@@ -446,7 +487,7 @@ export function EscalasView({ theme = 'light' }) {
   // Salvar edição de colaborador (ADMIN)
   const salvarEdicaoColaborador = (e) => {
     e.preventDefault();
-    if (!isAdmin || !editandoFunc) return;
+    if (!isAdmin || !podeEditar || !editandoFunc) return;
 
     const nomeLimpo = editNome.trim();
     if (!nomeLimpo) {
@@ -473,7 +514,6 @@ export function EscalasView({ theme = 'light' }) {
 
     const { nomeOriginal } = editandoFunc;
 
-    // Atualiza lista de turnos e ordena
     setTurnosFuncionarios((prev) =>
       prev.map((t) => {
         const semAntigo = t.funcionarios.filter((f) => f !== nomeOriginal);
@@ -484,7 +524,6 @@ export function EscalasView({ theme = 'light' }) {
       })
     );
 
-    // Atualiza setor
     setSetoresFuncionarios((prev) => {
       const copia = { ...prev };
       if (nomeOriginal !== nomeLimpo) {
@@ -494,7 +533,6 @@ export function EscalasView({ theme = 'light' }) {
       return copia;
     });
 
-    // Atualiza vigência (admissão / desligamento)
     setVigenciaFuncionarios((prev) => {
       const copia = { ...prev };
       if (nomeOriginal !== nomeLimpo) {
@@ -507,7 +545,6 @@ export function EscalasView({ theme = 'light' }) {
       return copia;
     });
 
-    // Atualiza folgas fixas
     setFolgasFixas((prev) => {
       const copia = { ...prev };
       if (nomeOriginal !== nomeLimpo) {
@@ -517,7 +554,6 @@ export function EscalasView({ theme = 'light' }) {
       return copia;
     });
 
-    // Se o nome foi alterado, migra registros semanais e observações
     if (nomeOriginal !== nomeLimpo) {
       setEscalas((prev) => {
         const atualizado = {};
@@ -557,7 +593,7 @@ export function EscalasView({ theme = 'light' }) {
   // Confirmar desligamento preservando histórico
   const confirmarDesligamento = (e) => {
     e.preventDefault();
-    if (!isAdmin || !desligandoFunc) return;
+    if (!isAdmin || !podeEditar || !desligandoFunc) return;
 
     const { nome } = desligandoFunc;
     const vigAtual = getVigenciaColaborador(nome);
@@ -581,7 +617,7 @@ export function EscalasView({ theme = 'light' }) {
 
   // Reativar colaborador desligado
   const reativarColaborador = (nome) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !podeEditar) return;
     const vigAtual = getVigenciaColaborador(nome);
     setVigenciaFuncionarios((prev) => ({
       ...prev,
@@ -594,7 +630,7 @@ export function EscalasView({ theme = 'light' }) {
 
   // Excluir cadastro definitivamente (apenas para erro de digitação/duplicidade)
   const excluirDefinitivamente = (nomeRemover, turnoNome) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !podeEditar) return;
     const confirmar = window.confirm(
       `ATENÇÃO: Isso apagará "${nomeRemover}" e TODO o histórico de escalas dele.\n\nSe ele apenas saiu da empresa, use "Desligar" para manter o histórico.\nDeseja realmente excluir definitivamente?`
     );
@@ -681,6 +717,7 @@ export function EscalasView({ theme = 'light' }) {
   };
 
   const alterarStatus = (nome, diaId, novoStatus) => {
+    if (!podeEditar) return;
     setEscalas((prev) => ({
       ...prev,
       [chaveSemana]: {
@@ -694,6 +731,7 @@ export function EscalasView({ theme = 'light' }) {
   };
 
   const alterarObservacao = (nome, diaId, texto) => {
+    if (!podeEditar) return;
     setObservacoes((prev) => ({
       ...prev,
       [chaveSemana]: {
@@ -707,7 +745,7 @@ export function EscalasView({ theme = 'light' }) {
   };
 
   const toggleFolgaFixa = (nome, diaId) => {
-    if (!isAdmin) return;
+    if (!isAdmin || !podeEditar) return;
     setFolgasFixas((prev) => {
       const atuais = prev[nome] || [];
       const jaTem = atuais.includes(diaId);
@@ -726,7 +764,7 @@ export function EscalasView({ theme = 'light' }) {
     return diasCalculados.some((dia) => isAtivoNaData(nome, dia.dataISO));
   };
 
- // Contagem e datas de faltas por operador no mês (considerando apenas dias em que estava ativo)
+  // Contagem e datas de faltas por operador no mês
   const relatorioFaltasPorOperador = useMemo(() => {
     const targetAno = parseInt(anoFaltas, 10);
     const targetMes = parseInt(mesFaltas, 10) - 1;
@@ -775,7 +813,7 @@ export function EscalasView({ theme = 'light' }) {
     }));
   }, [anoFaltas, mesFaltas, escalas, observacoes, todosFuncionariosOrdenados, vigenciaFuncionarios]);
 
-  // PDF Mensal de Faltas (quantidade + dias exatos de falta por colaborador)
+  // PDF Mensal de Faltas
   const exportarPDFFaltasMes = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     let y = 16;
@@ -841,7 +879,7 @@ export function EscalasView({ theme = 'light' }) {
     doc.save(`relatorio_faltas_${mesFaltas}-${anoFaltas}.pdf`);
   };
 
-  // PDF Semanal Geral (respeitando vigência na semana e filtro de setor)
+  // PDF Semanal Geral
   const exportarParaPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     let y = 16;
@@ -950,7 +988,7 @@ export function EscalasView({ theme = 'light' }) {
     doc.save(nomeArquivo);
   };
 
-  // PDF Individual Mensal (preserva histórico completo até a data de desligamento)
+  // PDF Individual Mensal
   const exportarPDFMensalIndividual = () => {
     const ano = parseInt(anoSelecionado, 10);
     const mes = parseInt(mesSelecionado, 10) - 1;
@@ -1243,11 +1281,88 @@ export function EscalasView({ theme = 'light' }) {
 
   return (
     <div style={styles.container}>
+      {erroCarregamento && (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            background: isDark ? '#7f1d1d' : '#fee2e2',
+            border: '1px solid #dc2626',
+            color: isDark ? '#fecaca' : '#991b1b',
+            fontWeight: '600',
+            fontSize: '13px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <span>
+            Não foi possível carregar os dados mais recentes do servidor. A escala está em modo somente leitura para evitar perda de dados.
+          </span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#dc2626',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Recarregar
+          </button>
+        </div>
+      )}
+
+      {mensagemConflito && (
+        <div
+          style={{
+            marginBottom: '16px',
+            padding: '12px 16px',
+            borderRadius: '8px',
+            background: isDark ? '#78350f' : '#fef3c7',
+            border: '1px solid #d97706',
+            color: isDark ? '#fde68a' : '#92400e',
+            fontWeight: '600',
+            fontSize: '13px',
+            display: 'flex',
+            justifyContent: 'space-between',
+            alignItems: 'center',
+            gap: '12px',
+          }}
+        >
+          <span>{mensagemConflito}</span>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            style={{
+              padding: '6px 12px',
+              borderRadius: '6px',
+              border: 'none',
+              background: '#d97706',
+              color: '#ffffff',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              flexShrink: 0,
+            }}
+          >
+            Recarregar página
+          </button>
+        </div>
+      )}
+
       <header style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={styles.title}>Escalas de Funcionários</h1>
           <p style={styles.subtitle}>
             Acompanhamento semanal de setores, turnos, folgas e ausências.
+            {!temPermissaoEdicao && ' (Modo somente visualização)'}
           </p>
         </div>
 
@@ -1270,7 +1385,7 @@ export function EscalasView({ theme = 'light' }) {
             Próxima Semana <span>→</span>
           </button>
 
-          {isAdmin && (
+          {isAdmin && podeEditar && (
             <button
               onClick={() => {
                 setErroCadastro('');
@@ -1323,7 +1438,7 @@ export function EscalasView({ theme = 'light' }) {
       </header>
 
       {/* MODAL DE GERENCIAR COLABORADORES (APENAS ADMIN) */}
-      {isAdmin && modalGerenciarAberto && (
+      {isAdmin && podeEditar && modalGerenciarAberto && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -1744,7 +1859,7 @@ export function EscalasView({ theme = 'light' }) {
       )}
 
       {/* MODAL SECUNDÁRIO DE DESLIGAMENTO (PRESERVA HISTÓRICO) */}
-      {isAdmin && desligandoFunc && (
+      {isAdmin && podeEditar && desligandoFunc && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -1835,7 +1950,7 @@ export function EscalasView({ theme = 'light' }) {
       )}
 
       {/* MODAL SECUNDÁRIO DE EDIÇÃO DE COLABORADOR (SOBREPOSTO) */}
-      {isAdmin && editandoFunc && (
+      {isAdmin && podeEditar && editandoFunc && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -2065,7 +2180,7 @@ export function EscalasView({ theme = 'light' }) {
       )}
 
       {/* MODAL DE FOLGA FIXA POR COLABORADOR */}
-      {isAdmin && funcFolgaFixaModal && (
+      {isAdmin && podeEditar && funcFolgaFixaModal && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -2145,7 +2260,7 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       )}
 
-      {/* MODAL MENSAL INDIVIDUAL (INCLUI DESLIGADOS PARA CONSULTA HISTÓRICA) */}
+      {/* MODAL MENSAL INDIVIDUAL */}
       {modalPdfAberto && (
         <div style={{
           position: 'fixed',
@@ -2451,7 +2566,7 @@ export function EscalasView({ theme = 'light' }) {
               </div>
             </div>
 
-           <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '20px', fontSize: '13px' }}>
               <thead>
                 <tr style={{ background: isDark ? '#0f172a' : '#f1f5f9' }}>
                   <th style={{ padding: '8px', textAlign: 'left', borderBottom: '1px solid #cbd5e1' }}>Operador</th>
@@ -2495,8 +2610,7 @@ export function EscalasView({ theme = 'light' }) {
             </div>
           </div>
         </div>
-      )
-           }
+      )}
 
       {/* Barra de Filtros (Busca + Setor + Turno) */}
       <div style={styles.filterBar}>
@@ -2565,7 +2679,7 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       </div>
 
-      {/* Tabelas de Turno (ordenadas alfabeticamente, filtradas por vigência na semana, setor e busca) */}
+      {/* Tabelas de Turno */}
       {turnosFiltrados.map((turno) => {
         const funcionariosFiltrados = ordenarNomes(turno.funcionarios).filter((nome) => {
           const bateNome = nome.toLowerCase().includes(busca.toLowerCase());
@@ -2652,7 +2766,7 @@ export function EscalasView({ theme = 'light' }) {
                               </span>
                             )}
                           </div>
-                          {isAdmin ? (
+                          {isAdmin && podeEditar ? (
                             <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
                               <button
                                 type="button"
@@ -2742,6 +2856,7 @@ export function EscalasView({ theme = 'light' }) {
                             <td key={dia.id} style={{ padding: '8px', textAlign: 'center' }}>
                               <select
                                 value={statusAtual}
+                                disabled={!podeEditar}
                                 onChange={(e) => alterarStatus(nome, dia.id, e.target.value)}
                                 style={{
                                   padding: '6px 8px',
@@ -2751,7 +2866,8 @@ export function EscalasView({ theme = 'light' }) {
                                   color: isDark ? '#ffffff' : confStatus.color,
                                   fontWeight: 'bold',
                                   fontSize: '12px',
-                                  cursor: 'pointer',
+                                  cursor: podeEditar ? 'pointer' : 'not-allowed',
+                                  opacity: podeEditar ? 1 : 0.85,
                                   outline: 'none',
                                   width: '100%',
                                 }}
@@ -2775,6 +2891,7 @@ export function EscalasView({ theme = 'light' }) {
                                   type="text"
                                   placeholder="Motivo..."
                                   value={obsAtual}
+                                  disabled={!podeEditar}
                                   onChange={(e) => alterarObservacao(nome, dia.id, e.target.value)}
                                   style={{
                                     marginTop: '6px',
@@ -2786,7 +2903,8 @@ export function EscalasView({ theme = 'light' }) {
                                     background: isDark ? '#0f172a' : '#ffffff',
                                     color: isDark ? '#ffffff' : '#000000',
                                     boxSizing: 'border-box',
-                                    display: 'block'
+                                    display: 'block',
+                                    opacity: podeEditar ? 1 : 0.85,
                                   }}
                                 />
                               )}
