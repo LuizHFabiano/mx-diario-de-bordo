@@ -1,12 +1,11 @@
-﻿import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { jsPDF } from 'jspdf';
 import { useAuth } from '../context/AuthContext';
 import { apiClient } from '../data/apiClient';
 
-// Calcula a segunda-feira da semana atual usando o horário local da máquina
 function getSegundaFeiraAtual() {
   const hoje = new Date();
-  const diaDaSemana = hoje.getDay(); // 0 = Domingo, 1 = Segunda, ..., 6 = Sábado
+  const diaDaSemana = hoje.getDay();
   const diferencaParaSegunda = diaDaSemana === 0 ? -6 : 1 - diaDaSemana;
 
   const segunda = new Date(hoje);
@@ -140,7 +139,6 @@ export function EscalasView({ theme = 'light' }) {
   const [turnoFiltro, setTurnoFiltro] = useState('TODOS');
   const [busca, setBusca] = useState('');
 
-  // Lista dinâmica de turnos e colaboradores
   const [turnosFuncionarios, setTurnosFuncionarios] = useState(() => {
     try {
       const salvoTurnos = localStorage.getItem('mx_turnos_funcionarios_v1');
@@ -150,7 +148,6 @@ export function EscalasView({ theme = 'light' }) {
     }
   });
 
-  // Mapa de setor por colaborador ({ [nome]: 'Suporte' | 'Financeiro' | 'Comercial' })
   const [setoresFuncionarios, setSetoresFuncionarios] = useState(() => {
     try {
       const salvoSetores = localStorage.getItem('mx_setores_funcionarios_v1');
@@ -160,7 +157,6 @@ export function EscalasView({ theme = 'light' }) {
     }
   });
 
-  // Vigência de vínculo por colaborador ({ [nome]: { admissao: 'YYYY-MM-DD', desligamento: 'YYYY-MM-DD' | null } })
   const [vigenciaFuncionarios, setVigenciaFuncionarios] = useState(() => {
     try {
       const salvoVigencia = localStorage.getItem('mx_vigencia_funcionarios_v1');
@@ -170,7 +166,6 @@ export function EscalasView({ theme = 'light' }) {
     }
   });
 
-  // Modal de gerenciamento de colaboradores (apenas ADMIN)
   const [modalGerenciarAberto, setModalGerenciarAberto] = useState(false);
   const [novoNome, setNovoNome] = useState('');
   const [novoSetor, setNovoSetor] = useState('Suporte');
@@ -180,7 +175,6 @@ export function EscalasView({ theme = 'light' }) {
   const [erroCadastro, setErroCadastro] = useState('');
   const [buscaGerenciarFunc, setBuscaGerenciarFunc] = useState('');
 
-  // Estado de edição de colaborador existente (abre em modal sobreposto)
   const [editandoFunc, setEditandoFunc] = useState(null);
   const [editNome, setEditNome] = useState('');
   const [editSetor, setEditSetor] = useState('Suporte');
@@ -190,11 +184,9 @@ export function EscalasView({ theme = 'light' }) {
   const [editFolgasFixas, setEditFolgasFixas] = useState([]);
   const [erroEdicao, setErroEdicao] = useState('');
 
-  // Modal de desligamento rápido
-  const [desligandoFunc, setDesligandoFunc] = useState(null); // { nome, turnoNome }
+  const [desligandoFunc, setDesligandoFunc] = useState(null);
   const [dataDesligamentoInput, setDataDesligamentoInput] = useState(() => getHojeISO());
 
-  // Modal de exportação individual
   const [modalPdfAberto, setModalPdfAberto] = useState(false);
   const [buscaPdfFunc, setBuscaPdfFunc] = useState('');
   const [dropdownPdfAberto, setDropdownPdfAberto] = useState(false);
@@ -206,7 +198,6 @@ export function EscalasView({ theme = 'light' }) {
     String(new Date().getFullYear())
   );
 
-  // Modal de relatório de faltas
   const [modalFaltasAberto, setModalFaltasAberto] = useState(false);
   const [mesFaltas, setMesFaltas] = useState(() =>
     String(new Date().getMonth() + 1).padStart(2, '0')
@@ -215,7 +206,6 @@ export function EscalasView({ theme = 'light' }) {
     String(new Date().getFullYear())
   );
 
-  // Modal de configuração rápida de folga fixa por colaborador
   const [funcFolgaFixaModal, setFuncFolgaFixaModal] = useState(null);
 
   const getSetorColaborador = (nome) => setoresFuncionarios?.[nome] || 'Suporte';
@@ -228,7 +218,6 @@ export function EscalasView({ theme = 'light' }) {
     };
   };
 
-  // Verifica se o colaborador estava ativo em uma data específica ('YYYY-MM-DD')
   const isAtivoNaData = (nome, dataISO) => {
     const { admissao, desligamento } = getVigenciaColaborador(nome);
     if (admissao && dataISO < admissao) return false;
@@ -296,7 +285,6 @@ export function EscalasView({ theme = 'light' }) {
   const podeEditar =
     temPermissaoEdicao && !erroCarregamento && !mensagemConflito;
 
-  // Carrega os dados compartilhados do PostgreSQL ao abrir a aba Escalas
   useEffect(() => {
     let ativo = true;
     apiClient('/api/work-scales')
@@ -338,7 +326,6 @@ export function EscalasView({ theme = 'light' }) {
     };
   }, []);
 
-  // Salva automaticamente no PostgreSQL sempre que houver alteração na escala
   useEffect(() => {
     if (!apiPronta || !podeEditar) return;
 
@@ -379,7 +366,7 @@ export function EscalasView({ theme = 'light' }) {
           }
           console.error('Erro ao sincronizar escalas:', err);
         });
-    }, 500);
+    }, 300);
     return () => clearTimeout(timer);
   }, [
     apiPronta,
@@ -416,7 +403,6 @@ export function EscalasView({ theme = 'light' }) {
     localStorage.setItem('mx_folgas_fixas_v1', JSON.stringify(folgasFixas));
   }, [folgasFixas]);
 
-  // Adicionar novo colaborador (ADMIN)
   const adicionarColaborador = (e) => {
     e.preventDefault();
     if (!isAdmin || !podeEditar) return;
@@ -470,7 +456,6 @@ export function EscalasView({ theme = 'light' }) {
     setErroCadastro('');
   };
 
-  // Iniciar edição de colaborador (ADMIN)
   const iniciarEdicaoColaborador = (nome, turnoNome) => {
     if (!isAdmin || !podeEditar) return;
     const vig = getVigenciaColaborador(nome);
@@ -484,7 +469,6 @@ export function EscalasView({ theme = 'light' }) {
     setErroEdicao('');
   };
 
-  // Salvar edição de colaborador (ADMIN)
   const salvarEdicaoColaborador = (e) => {
     e.preventDefault();
     if (!isAdmin || !podeEditar || !editandoFunc) return;
@@ -590,7 +574,6 @@ export function EscalasView({ theme = 'light' }) {
     setErroEdicao('');
   };
 
-  // Confirmar desligamento preservando histórico
   const confirmarDesligamento = (e) => {
     e.preventDefault();
     if (!isAdmin || !podeEditar || !desligandoFunc) return;
@@ -615,7 +598,6 @@ export function EscalasView({ theme = 'light' }) {
     setDesligandoFunc(null);
   };
 
-  // Reativar colaborador desligado
   const reativarColaborador = (nome) => {
     if (!isAdmin || !podeEditar) return;
     const vigAtual = getVigenciaColaborador(nome);
@@ -628,7 +610,6 @@ export function EscalasView({ theme = 'light' }) {
     }));
   };
 
-  // Excluir cadastro definitivamente (apenas para erro de digitação/duplicidade)
   const excluirDefinitivamente = (nomeRemover, turnoNome) => {
     if (!isAdmin || !podeEditar) return;
     const confirmar = window.confirm(
@@ -661,7 +642,6 @@ export function EscalasView({ theme = 'light' }) {
     );
   };
 
-  // Segunda-feira ativa
   const dataSegunda = useMemo(() => {
     const base = getSegundaFeiraAtual();
     base.setDate(base.getDate() + semanaOffset * 7);
@@ -759,12 +739,10 @@ export function EscalasView({ theme = 'light' }) {
     });
   };
 
-  // Verifica se o colaborador teve pelo menos 1 dia ativo na semana exibida
   const isAtivoNaSemanaExibida = (nome) => {
     return diasCalculados.some((dia) => isAtivoNaData(nome, dia.dataISO));
   };
 
-  // Contagem e datas de faltas por operador no mês
   const relatorioFaltasPorOperador = useMemo(() => {
     const targetAno = parseInt(anoFaltas, 10);
     const targetMes = parseInt(mesFaltas, 10) - 1;
@@ -813,7 +791,6 @@ export function EscalasView({ theme = 'light' }) {
     }));
   }, [anoFaltas, mesFaltas, escalas, observacoes, todosFuncionariosOrdenados, vigenciaFuncionarios]);
 
-  // PDF Mensal de Faltas
   const exportarPDFFaltasMes = () => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     let y = 16;
@@ -879,7 +856,6 @@ export function EscalasView({ theme = 'light' }) {
     doc.save(`relatorio_faltas_${mesFaltas}-${anoFaltas}.pdf`);
   };
 
-  // PDF Semanal Geral
   const exportarParaPDF = () => {
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
     let y = 16;
@@ -988,7 +964,6 @@ export function EscalasView({ theme = 'light' }) {
     doc.save(nomeArquivo);
   };
 
-  // PDF Individual Mensal
   const exportarPDFMensalIndividual = () => {
     const ano = parseInt(anoSelecionado, 10);
     const mes = parseInt(mesSelecionado, 10) - 1;
@@ -1437,7 +1412,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       </header>
 
-      {/* MODAL DE GERENCIAR COLABORADORES (APENAS ADMIN) */}
       {isAdmin && podeEditar && modalGerenciarAberto && (
         <div style={{
           position: 'fixed',
@@ -1477,7 +1451,6 @@ export function EscalasView({ theme = 'light' }) {
               </button>
             </div>
 
-            {/* Formulário de novo colaborador */}
             <form
               onSubmit={adicionarColaborador}
               style={{
@@ -1640,7 +1613,6 @@ export function EscalasView({ theme = 'light' }) {
               </button>
             </form>
 
-            {/* Listagem ordenada por turno com filtro de pesquisa */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', marginBottom: '12px', flexWrap: 'wrap' }}>
                 <h4 style={{ margin: 0, fontSize: '14px' }}>Colaboradores Cadastrados (A–Z)</h4>
@@ -1858,7 +1830,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       )}
 
-      {/* MODAL SECUNDÁRIO DE DESLIGAMENTO (PRESERVA HISTÓRICO) */}
       {isAdmin && podeEditar && desligandoFunc && (
         <div style={{
           position: 'fixed',
@@ -1949,7 +1920,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       )}
 
-      {/* MODAL SECUNDÁRIO DE EDIÇÃO DE COLABORADOR (SOBREPOSTO) */}
       {isAdmin && podeEditar && editandoFunc && (
         <div style={{
           position: 'fixed',
@@ -2056,7 +2026,6 @@ export function EscalasView({ theme = 'light' }) {
                 </div>
               </div>
 
-              {/* Datas de Admissão e Desligamento */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', marginBottom: '14px' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '12px', fontWeight: 'bold', marginBottom: '4px' }}>
@@ -2179,7 +2148,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       )}
 
-      {/* MODAL DE FOLGA FIXA POR COLABORADOR */}
       {isAdmin && podeEditar && funcFolgaFixaModal && (
         <div style={{
           position: 'fixed',
@@ -2260,7 +2228,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       )}
 
-      {/* MODAL MENSAL INDIVIDUAL */}
       {modalPdfAberto && (
         <div style={{
           position: 'fixed',
@@ -2498,7 +2465,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       )}
 
-      {/* MODAL RELATÓRIO DE FALTAS */}
       {modalFaltasAberto && (
         <div style={{
           position: 'fixed',
@@ -2612,7 +2578,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       )}
 
-      {/* Barra de Filtros (Busca + Setor + Turno) */}
       <div style={styles.filterBar}>
         <input
           type="text"
@@ -2622,7 +2587,6 @@ export function EscalasView({ theme = 'light' }) {
           style={styles.input}
         />
 
-        {/* Filtro por Setor */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#475569' }}>
             Setor:
@@ -2650,7 +2614,6 @@ export function EscalasView({ theme = 'light' }) {
           })}
         </div>
 
-        {/* Filtro por Turno */}
         <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', alignItems: 'center' }}>
           <span style={{ fontSize: '12px', fontWeight: 'bold', color: isDark ? '#94a3b8' : '#475569' }}>
             Turno:
@@ -2679,7 +2642,6 @@ export function EscalasView({ theme = 'light' }) {
         </div>
       </div>
 
-      {/* Tabelas de Turno */}
       {turnosFiltrados.map((turno) => {
         const funcionariosFiltrados = ordenarNomes(turno.funcionarios).filter((nome) => {
           const bateNome = nome.toLowerCase().includes(busca.toLowerCase());
