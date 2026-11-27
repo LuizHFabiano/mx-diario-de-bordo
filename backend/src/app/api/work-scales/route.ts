@@ -34,11 +34,9 @@ export async function GET() {
       updatedAt: state?.updatedAt ?? null,
     });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: 'Erro ao carregar escalas', details: error.message },
-      { status: 500 }
-    );
-  }
+  console.error('Erro em /api/work-scales:', error);
+  return NextResponse.json({ error: 'Erro ao carregar escalas' }, { status: 500 });
+}
 }
 
 export async function PUT(request: Request) {
@@ -47,7 +45,10 @@ export async function PUT(request: Request) {
     if (!session) {
       return NextResponse.json({ error: 'Não autenticado' }, { status: 401 });
     }
-
+    const role = session.user.role;
+    if (role !== 'ADMIN' && role !== 'MANAGER') {
+      return NextResponse.json({ error: 'Sem permissão para editar escalas' }, { status: 403 });
+    }
     const body = await request.json();
     const {
       turnosFuncionarios,
@@ -61,6 +62,13 @@ export async function PUT(request: Request) {
     const previousState = await prisma.workScaleState.findUnique({
       where: { id: 'global' },
     });
+    const updatedAtCliente = body?.updatedAt ? new Date(body.updatedAt).getTime() : null;
+    if (previousState && updatedAtCliente !== previousState.updatedAt.getTime()) {
+      return NextResponse.json(
+        { error: 'A escala foi alterada por outra pessoa, recarregue a página' },
+        { status: 409 }
+      );
+    }
     const prevPayload = (previousState?.payload as Record<string, any>) || {};
 
     const isAdmin = session.user.role === 'ADMIN';
@@ -183,9 +191,7 @@ export async function PUT(request: Request) {
 
     return NextResponse.json({ ok: true, updatedAt: saved.updatedAt });
   } catch (error: any) {
-    return NextResponse.json(
-      { error: 'Erro ao salvar escalas', details: error.message },
-      { status: 500 }
-    );
+    console.error('Erro em /api/work-scales:', error);
+    return NextResponse.json({ error: 'Erro ao salvar escalas' }, { status: 500 });
   }
 }
